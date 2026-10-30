@@ -45,7 +45,7 @@ function limiter() {
 }
 
 export const SECURITY_HEADERS = {
-  'Cache-Control': 'no-store',
+  'Cache-Control': 'no-store, no-transform',
   'X-Content-Type-Options': 'nosniff',
   'Referrer-Policy': 'no-referrer',
   'Content-Security-Policy': "default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self' data:; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
@@ -164,8 +164,8 @@ export function createApi({ repository, origin, clock = Date.now, clientIp = () 
           const { document } = await auth(id, token);
           if (!document.content) return send(202, { waiting: true });
           const etag = `"${document._rev}"`;
-          if (request.headers.get('if-none-match') === etag) return send(304, undefined, { ETag: etag });
-          return send(200, document.content, { ETag: etag });
+          if (request.headers.get('if-none-match') === etag) return send(304, undefined, { ETag: etag, 'X-Share-Revision': etag });
+          return send(200, document.content, { ETag: etag, 'X-Share-Revision': etag });
         }
         if (request.method === 'PUT') {
           envelope(body);
@@ -173,10 +173,10 @@ export function createApi({ repository, origin, clock = Date.now, clientIp = () 
           if (!document.content) {
             if (!owner || !document.accepted) throw fail(409, 'Erste Übernahme noch nicht bestätigt.');
             if (request.headers.get('if-none-match') !== '*') throw fail(428, 'Bedingte Anfrage erforderlich.');
-          } else if (request.headers.get('if-match') !== `"${document._rev}"`) throw fail(409, 'Version geändert.');
+          } else if (request.headers.get('if-match')?.replace(/^W\//,'') !== `"${document._rev}"`) throw fail(409, 'Version geändert.');
           document.content = body;
           const saved = await repository.put(document);
-          return send(200, { ok: true }, { ETag: `"${saved._rev}"` });
+          return send(200, { ok: true }, { ETag: `"${saved._rev}"`, 'X-Share-Revision': `"${saved._rev}"` });
         }
       }
       if (!action && request.method === 'DELETE') {

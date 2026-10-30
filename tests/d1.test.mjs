@@ -12,7 +12,12 @@ async function workerFixture(t) {
   t.after(()=>mf.dispose());
   const db=await mf.getD1Database('DB');
   await db.prepare(await readFile(new URL('../drizzle/0000_marvelous_reptil.sql',import.meta.url),'utf8')).run();
-  const url=`https://worker-${randomUUID()}.test`,fetch=(input,init)=>mf.dispatchFetch(input,init);
+  const url=`https://worker-${randomUUID()}.test`,fetch=async(input,init)=>{
+    const response=await mf.dispatchFetch(input,init),headers=new Headers(response.headers);
+    // Sites/gzip can weaken ETag after the Worker has generated its response.
+    const etag=headers.get('ETag');if(etag&&!etag.startsWith('W/'))headers.set('ETag','W/'+etag);
+    return new Response(response.body,{status:response.status,headers});
+  };
   registerTransport(url,fetch);t.after(()=>registerTransport(url,null));
   return {url,fetch,db};
 }

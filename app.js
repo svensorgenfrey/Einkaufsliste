@@ -204,7 +204,7 @@ class ShareTransport {
     const response = await fetch(new URL(path,this.origin),{method,headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json',...headers},body:body===undefined?undefined:JSON.stringify(body),signal:signal ? AbortSignal.any([signal,AbortSignal.timeout(12000)]) : AbortSignal.timeout(12000),cache:'no-store',credentials:'same-origin',redirect:'error',referrerPolicy:'no-referrer'});
     const data = response.status===204 || response.status===304 ? null : await response.json().catch(()=>null);
     if (!response.ok && response.status!==304) throw new ShareError(response.status,data?.error || 'Server nicht erreichbar.');
-    return {status:response.status,data,revision:response.headers.get('ETag')};
+    return {status:response.status,data,revision:response.headers.get('X-Share-Revision') || response.headers.get('ETag')?.replace(/^W\//,'') || null};
   }
 }
 // END SHARE PROTOCOL

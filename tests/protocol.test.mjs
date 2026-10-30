@@ -65,3 +65,11 @@ test('the actual invitation packaging function never includes the owner token',a
   assert.deepEqual(Object.keys(packet).sort(),['key','memberToken','remoteId','v']);
   assert.equal(packet.key,share.key);assert.equal(packet.memberToken,share.memberToken);assert.ok(!JSON.stringify(packet).includes(share.ownerToken));
 });
+
+test('transport uses the stable revision header and normalizes proxy-weakened legacy ETags',async()=>{
+  for(const headers of [{'ETag':'W/"4-version"','X-Share-Revision':'"4-version"'},{'ETag':'W/"4-version"'}]){
+    const client=browser('https://example.test',undefined,async()=>new Response('{}',{headers}));
+    const result=await client.transport.request('/api/shares/test/content',P.secret());
+    assert.equal(result.revision,'"4-version"');
+  }
+});

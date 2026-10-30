@@ -85,3 +85,12 @@ test('a valid claim remains retryable and can activate after a new QR replaces i
   assert.equal(await reopened.sync(id),'waiting');assert.equal(f.writes,0);
   assert.equal(await a.client.sync(a.list.id),'synced');assert.equal(await reopened.sync(id),'synced');
 });
+
+test('proxy-weakened validators keep conditional revision protection without false conflicts',async t=>{
+  const f=await fixture(t),{a}=await activePair(f),s=a.share,path=`/api/shares/${s.remoteId}/content`;
+  const current=await request(f,path,s.memberToken);
+  assert.equal(current.headers.get('X-Share-Revision'),current.revision);
+  const updated=await request(f,path,s.memberToken,'PUT',current.data,{'If-Match':'W/'+current.revision});
+  assert.equal(updated.status,200);assert.equal(updated.headers.get('X-Share-Revision'),updated.revision);
+  assert.equal((await request(f,path,s.memberToken,'PUT',current.data,{'If-Match':'W/'+current.revision})).status,409);
+});
