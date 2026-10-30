@@ -39,6 +39,17 @@ select option { background: var(--surface-raised); color: #f5f5f5; font-size: 17
 .menu { position: absolute; z-index: 20; right: 2px; top: 46px; min-width: 225px; background: #2b2b2b; border: 1px solid #777777; padding: 6px; border-radius: 14px; box-shadow: 0 14px 40px #0006; }
 .menu button { width: 100%; display: flex; align-items: center; gap: 12px; padding: 12px 10px; text-align: left; font-size: 14px; border-radius: 8px; }
 .menu button:hover, .menu button:focus-visible { background: #ffffff0a; }
+.search-bar { display: flex; align-items: center; gap: 8px; width: calc(100% - 32px); min-height: 44px; margin: 2px auto 12px; padding: 0 10px; border: 1px solid #777777; border-radius: 12px; background: var(--surface); }
+.search-bar > .icon { width: 19px; height: 19px; color: var(--muted); }
+.search-bar:focus-within { border-color: var(--primary); box-shadow: 0 0 0 1px var(--primary); }
+#list-search { flex: 1; min-width: 0; width: 100%; padding: 10px 0; border: 0; outline: 0; background: transparent; font-size: 16px; caret-color: var(--primary); appearance: none; -webkit-appearance: none; }
+#list-search::placeholder { color: #bdbdbd; opacity: 1; }
+#list-search::-webkit-search-cancel-button { appearance: none; -webkit-appearance: none; }
+.search-count { flex-shrink: 0; color: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.search-clear { display: grid; place-items: center; flex-shrink: 0; width: 32px; height: 36px; border-radius: 8px; color: var(--muted); }
+.search-clear:hover { color: var(--primary); background: #ffffff12; }
+.search-clear .icon { width: 18px; height: 18px; }
+.app-shell.is-searching .drag-handle { visibility: hidden; }
 .tools-bar { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 0 16px 12px; min-height: 46px; }
 .all-button { display: inline-flex; align-items: center; gap: 7px; padding: 8px 0; min-height: 36px; font-size: 12px; color: var(--muted); }
 .all-button .icon { width: 20px; height: 20px; color: var(--primary); }
@@ -79,7 +90,7 @@ body.dragging { -webkit-user-select: none; user-select: none; cursor: grabbing; 
 .empty-state { height: 100%; min-height: 180px; display: flex; align-items: center; justify-content: center; flex-direction: column; color: #bdbdbd; padding-bottom: 12%; }
 .empty-symbol { width: 68px; height: 68px; display: grid; place-items: center; border-radius: 22px; background: #242424; margin-bottom: 12px; transform: rotate(-7deg); }
 .empty-symbol svg { width: 34px; height: 34px; fill: none; stroke: #d0d0d0; stroke-width: 1.25; stroke-linecap: round; stroke-linejoin: round; }
-.empty-state p { margin: 0 0 6px; font-size: 14px; }
+.empty-state p { max-width: 100%; padding: 0 12px; margin: 0 0 6px; font-size: 14px; text-align: center; overflow-wrap: anywhere; }
 .composer-panel { border-top: 1px solid #626262; padding: 8px 16px max(12px, env(safe-area-inset-bottom)); background: var(--surface-raised); z-index: 2; }
 .composer-options { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding-bottom: 7px; }
 .kind-switch { display: inline-flex; align-items: center; gap: 2px; }

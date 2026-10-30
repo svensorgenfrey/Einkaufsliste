@@ -21,6 +21,7 @@ const ui = {
   list: element("shopping-list"), viewport: element("list-viewport"), newList: element("new-list"),
   menuToggle: element("list-menu-toggle"), menu: element("list-menu"), all: element("toggle-all"),
   allLabel: element("all-label"), count: element("item-count"), progress: element("progress-fill"),
+  searchForm: element("search-form"), search: /** @type {HTMLInputElement} */ (element("list-search")), searchClear: element("search-clear"), searchCount: element("search-count"),
   normal: element("scale-normal"), large: element("scale-large"), item: element("kind-item"), heading: element("kind-heading"), divider: element("add-divider"),
   composer: /** @type {HTMLFormElement} */ (element("composer")), input: /** @type {HTMLInputElement} */ (element("new-text")), add: element("add-item"),
   empty: element("empty-state"), emptyText: element("empty-text"), emptyCreate: element("empty-create"),
@@ -160,8 +161,8 @@ class LocalStore {
   }
 }
 
-/** @type {{store: LocalStore | null, lists: ShoppingList[], activeId: string | null, large: boolean, kind: 'item' | 'heading', ready: boolean, pending: number, failed: boolean, editor: EditorContext | null, drag: DragSession | null, refreshPending: boolean}} */
-const state = { store: null, lists: [], activeId: null, large: false, kind: "item", ready: false, pending: 0, failed: false, editor: null, drag: null, refreshPending: false };
+/** @type {{store: LocalStore | null, lists: ShoppingList[], activeId: string | null, large: boolean, kind: 'item' | 'heading', query: string, ready: boolean, pending: number, failed: boolean, editor: EditorContext | null, drag: DragSession | null, refreshPending: boolean}} */
+const state = { store: null, lists: [], activeId: null, large: false, kind: "item", query: "", ready: false, pending: 0, failed: false, editor: null, drag: null, refreshPending: false };
 let writeQueue = Promise.resolve();
 let toastTimer = 0;
 let ignoreClickUntil = 0;
@@ -171,6 +172,22 @@ const channel = typeof BroadcastChannel === "function" ? new BroadcastChannel("e
 
 /** @returns {ShoppingList | undefined} */
 function activeList() { return state.lists.find(list => list.id === state.activeId); }
+
+/** @param {string} text @returns {string} */
+function searchText(text) {
+  return text.toLocaleLowerCase("de").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/ß/g, "ss");
+}
+
+/** @param {ShoppingList | undefined} [list] @returns {ListItem[]} */
+function visibleItems(list = activeList()) {
+  const terms = searchText(state.query).trim().split(/\s+/).filter(Boolean);
+  if (!terms.length) return list?.items || [];
+  return list?.items.filter(item => item.kind !== "divider" && terms.every(term => searchText(item.text).includes(term))) || [];
+}
+
+function clearSearch() {
+  state.query = ""; ui.search.value = ""; render(); ui.viewport.scrollTop = 0;
+}
 
 /** @param {string} text */
 function announce(text) { ui.announcer.textContent = ""; requestAnimationFrame(() => { ui.announcer.textContent = text; }); }
@@ -207,6 +224,7 @@ async function refresh(initial = false) {
   state.lists = snapshot.lists;
   const preferences = new Map(snapshot.preferences.map(preference => [preference.key, preference.value]));
   if (initial || !state.lists.some(list => list.id === state.activeId)) {
+    state.query = "";
     const selected = preferences.get("activeListId");
     state.activeId = typeof selected === "string" && state.lists.some(list => list.id === selected) ? selected : state.lists[0]?.id || null;
   }
@@ -272,7 +290,8 @@ function renderItem(item) {
     const content = document.createElement(item.kind === "heading" ? "h3" : "div"); content.classList.add("item-content"); content.append(edit); row.append(content);
   }
   const handle = document.createElement("button"); handle.type = "button"; handle.className = "drag-handle"; handle.dataset.action = "move-item";
-  handle.disabled = !state.ready;
+  // Reordering requires the full list, otherwise hidden rows could move too.
+  handle.disabled = !state.ready || !!state.query.trim();
   handle.setAttribute("aria-label", `${item.kind === "divider" ? "Trennlinie" : item.text} verschieben`);
   handle.setAttribute("aria-describedby", "drag-help"); handle.title = "Ziehen oder mit Pfeiltasten verschieben"; handle.append(icon("grip")); row.append(handle);
   return row;
@@ -284,7 +303,10 @@ function render() {
   const focusId = focusedRow instanceof HTMLElement ? focusedRow.dataset.itemId : null;
   const focusAction = focused instanceof HTMLElement ? focused.dataset.action : null;
   const list = activeList();
+  const items = visibleItems(list);
+  const searching = !!state.query.trim();
   ui.shell.dataset.scale = state.large ? "large" : "normal";
+  ui.shell.classList.toggle("is-searching", searching);
   ui.shell.setAttribute("aria-busy", String(!state.ready));
   ui.select.replaceChildren();
   if (!state.lists.length) {
@@ -298,11 +320,17 @@ function render() {
   disable(ui.select, !state.ready || !list);
   disable(ui.newList, !state.ready);
   disable(ui.menuToggle, !state.ready || !list);
-  const checks = list?.items.filter(item => item.kind === "item") || [];
+  disable(ui.search, !state.ready || !list);
+  if (ui.search.value !== state.query) ui.search.value = state.query;
+  ui.searchClear.hidden = !state.query;
+  ui.searchCount.hidden = !searching;
+  ui.searchCount.textContent = searching ? `${items.length} Treffer` : "";
+  const checks = items.filter(item => item.kind === "item");
   const checked = checks.filter(item => item.checked).length;
   const allChecked = checks.length > 0 && checked === checks.length;
-  ui.allLabel.textContent = allChecked ? "Alle öffnen" : "Alle abhaken";
-  ui.all.setAttribute("aria-label", allChecked ? "Alle Checkboxen als offen markieren" : "Alle Checkboxen abhaken");
+  ui.allLabel.textContent = `${searching ? "Treffer" : "Alle"} ${allChecked ? "öffnen" : "abhaken"}`;
+  const scope = searching ? "Gefundene Checkboxen" : "Alle Checkboxen";
+  ui.all.setAttribute("aria-label", `${scope} ${allChecked ? "als offen markieren" : "abhaken"}`);
   ui.count.textContent = `${checked} / ${checks.length}`;
   disable(ui.all, !state.ready || !checks.length);
   ui.progress.style.width = `${checks.length ? checked / checks.length * 100 : 0}%`;
@@ -310,9 +338,9 @@ function render() {
   ui.large.setAttribute("aria-pressed", String(state.large));
   for (const control of [ui.normal, ui.large]) disable(control, !state.ready);
   for (const control of [ui.item, ui.heading, ui.divider, ui.input, ui.add]) disable(control, !state.ready || !list);
-  ui.list.replaceChildren(...(list?.items.map(renderItem) || []));
-  ui.empty.hidden = !state.ready || !!list?.items.length;
-  ui.emptyText.textContent = list ? "Noch keine Einträge" : "Noch keine Liste";
+  ui.list.replaceChildren(...items.map(renderItem));
+  ui.empty.hidden = !state.ready || !!items.length;
+  ui.emptyText.textContent = list ? searching ? `Keine Treffer für „${state.query.trim()}“` : "Noch keine Einträge" : "Noch keine Liste";
   ui.emptyCreate.hidden = !!list;
   ui.error.hidden = state.ready;
   renderStatus();
@@ -419,7 +447,7 @@ function updateMoveControls() {
   const list = state.lists.find(entry => entry.id === context?.listId);
   const index = list?.items.findIndex(item => item.id === context?.itemId) ?? -1;
   for (const button of ui.fields.querySelectorAll("button[data-move]")) {
-    if (button instanceof HTMLButtonElement) button.disabled = index < 0 || (button.dataset.move === "-1" ? index === 0 : index === (list?.items.length || 0) - 1);
+    if (button instanceof HTMLButtonElement) button.disabled = !!state.query.trim() || index < 0 || (button.dataset.move === "-1" ? index === 0 : index === (list?.items.length || 0) - 1);
   }
 }
 
@@ -446,7 +474,7 @@ async function submitEditor() {
   let success = false;
   if (context.mode === "new-list") {
     const list = makeList(name);
-    success = await persist(async store => { await store.create(list); state.activeId = list.id; });
+    success = await persist(async store => { await store.create(list); state.activeId = list.id; state.query = ""; });
   } else if (context.mode === "delete-list" && context.listId) {
     success = await persist(store => store.remove(/** @type {string} */ (context.listId)));
   } else if (context.listId) {
@@ -488,7 +516,7 @@ async function moveItem(listId, itemId, delta) {
 /** @param {PointerEvent} event */
 function startDrag(event) {
   const target = event.target instanceof Element ? event.target.closest(".drag-handle") : null;
-  if (!(target instanceof HTMLButtonElement) || event.button !== 0 || !event.isPrimary || state.pending || state.drag || !state.ready || !state.activeId) return;
+  if (!(target instanceof HTMLButtonElement) || target.disabled || event.button !== 0 || !event.isPrimary || state.pending || state.drag || !state.ready || !state.activeId) return;
   const row = target.closest("li");
   if (!(row instanceof HTMLLIElement) || !row.dataset.itemId) return;
   // Keep capture on the stable container: moving the captured row itself can
@@ -550,9 +578,15 @@ async function finishDrag(cancel) {
 ui.newList.addEventListener("click", () => openEditor({ mode: "new-list", listId: null }));
 ui.emptyCreate.addEventListener("click", () => openEditor({ mode: "new-list", listId: null }));
 ui.select.addEventListener("change", () => {
-  state.activeId = ui.select.value; ui.input.value = ""; toggleMenu(false); render(); ui.viewport.scrollTop = 0;
+  state.activeId = ui.select.value; state.query = ""; ui.input.value = ""; toggleMenu(false); render(); ui.viewport.scrollTop = 0;
   void persist(store => store.preference("activeListId", state.activeId));
 });
+ui.search.addEventListener("input", () => {
+  if (state.drag) void finishDrag(true);
+  state.query = ui.search.value; render(); ui.viewport.scrollTop = 0;
+});
+ui.searchClear.addEventListener("click", () => { clearSearch(); ui.search.focus(); });
+ui.searchForm.addEventListener("submit", event => { event.preventDefault(); ui.search.blur(); });
 ui.menuToggle.addEventListener("click", () => toggleMenu(ui.menu.hidden));
 ui.menu.addEventListener("click", event => {
   const button = event.target instanceof Element ? event.target.closest("[data-action]") : null;
@@ -569,9 +603,10 @@ ui.menu.addEventListener("keydown", event => {
 });
 ui.all.addEventListener("click", () => {
   const list = activeList(); if (!list) return;
-  const checks = list.items.filter(item => item.kind === "item");
+  const checks = visibleItems(list).filter(item => item.kind === "item");
+  const ids = new Set(checks.map(item => item.id));
   const checked = !checks.every(item => item.checked);
-  void persist(store => store.update(list.id, current => { for (const item of current.items) if (item.kind === "item") { item.checked = checked; item.updatedAt = new Date().toISOString(); } }));
+  void persist(store => store.update(list.id, current => { for (const item of current.items) if (item.kind === "item" && ids.has(item.id)) { item.checked = checked; item.updatedAt = new Date().toISOString(); } }));
 });
 for (const [button, large] of [[ui.normal, false], [ui.large, true]]) {
   if (button instanceof HTMLElement) button.addEventListener("click", () => { void persist(store => store.preference("large", large)); });
@@ -604,7 +639,7 @@ ui.list.addEventListener("click", event => {
 });
 ui.list.addEventListener("keydown", event => {
   const handle = event.target;
-  if (!(handle instanceof HTMLButtonElement) || !handle.classList.contains("drag-handle") || !["ArrowUp", "ArrowDown"].includes(event.key)) return;
+  if (!(handle instanceof HTMLButtonElement) || handle.disabled || !handle.classList.contains("drag-handle") || !["ArrowUp", "ArrowDown"].includes(event.key)) return;
   event.preventDefault(); const id = handle.closest("li")?.dataset.itemId;
   if (id && state.activeId) void moveItem(state.activeId, id, event.key === "ArrowUp" ? -1 : 1);
 });
@@ -617,6 +652,7 @@ document.addEventListener("keydown", event => {
   if (event.key !== "Escape") return;
   if (state.drag) { event.preventDefault(); void finishDrag(true); }
   else if (!ui.menu.hidden) { event.preventDefault(); toggleMenu(false, true); }
+  else if (document.activeElement === ui.search && state.query) { event.preventDefault(); clearSearch(); }
 });
 ui.form.addEventListener("submit", event => { event.preventDefault(); void submitEditor(); });
 ui.cancel.addEventListener("click", closeEditor); ui.close.addEventListener("click", closeEditor);
