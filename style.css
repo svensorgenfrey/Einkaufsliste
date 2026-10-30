@@ -92,7 +92,15 @@ body.dragging { -webkit-user-select: none; user-select: none; cursor: grabbing; 
 .empty-symbol { width: 68px; height: 68px; display: grid; place-items: center; border-radius: 22px; background: #242424; margin-bottom: 12px; transform: rotate(-7deg); }
 .empty-symbol svg { width: 34px; height: 34px; fill: none; stroke: #d0d0d0; stroke-width: 1.25; stroke-linecap: round; stroke-linejoin: round; }
 .empty-state p { max-width: 100%; padding: 0 12px; margin: 0 0 6px; font-size: 14px; text-align: center; overflow-wrap: anywhere; }
-.composer-panel { border-top: 1px solid #626262; padding: 8px 16px max(12px, env(safe-area-inset-bottom)); background: var(--surface-raised); z-index: 2; }
+.composer-panel { border-top: 1px solid #626262; padding: 8px 16px max(12px, env(safe-area-inset-bottom)); background: var(--surface-raised); z-index: 2; transition: transform 220ms ease; }
+.composer-panel.is-dragging { transform: translateY(var(--composer-drag-offset, 0px)); transition: none; }
+.composer-grip-row { display: flex; align-items: center; justify-content: center; height: 24px; margin: -4px 0 2px; }
+.composer-grip { display: grid; place-items: center; width: 56px; height: 28px; padding: 4px 14px; border-radius: 16px; color: #b8b8b8; touch-action: none; cursor: grab; -webkit-user-select: none; user-select: none; }
+.composer-grip-indicator { display: block; width: 40px; height: 5px; border-radius: 999px; background: currentColor; }
+.composer-grip:hover, .composer-grip:active { color: var(--primary); background: #f5f5f50b; }
+.composer-panel.is-collapsed { padding-bottom: max(4px, env(safe-area-inset-bottom)); }
+.composer-content { max-height: 180px; overflow: hidden; opacity: 1; transform: translateY(0); transition: max-height 220ms ease, opacity 180ms ease, transform 220ms ease; }
+.composer-panel.is-collapsed .composer-content { max-height: 0; opacity: 0; transform: translateY(12px); pointer-events: none; }
 .composer-options { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding-bottom: 7px; }
 .kind-switch { display: inline-flex; align-items: center; gap: 2px; }
 .kind-switch button { min-height: 34px; display: inline-flex; align-items: center; gap: 5px; padding: 6px 8px; font-size: 11px; color: var(--muted); border-radius: 8px; }
@@ -105,10 +113,10 @@ body.dragging { -webkit-user-select: none; user-select: none; cursor: grabbing; 
 .save-status[data-state="error"] { color: var(--danger); }
 .save-status[data-state="error"] .status-dot { background: var(--danger); }
 #composer { display: flex; align-items: center; gap: 8px; }
-#new-text { min-width: 0; width: 100%; min-height: calc(48px * var(--scale)); border: 1px solid #939393; border-radius: 15px; background: #0e0e0e; padding: 10px 14px; font-size: calc(16px * var(--scale)); caret-color: var(--primary); }
+#new-text { min-width: 0; width: 100%; min-height: calc(42px * var(--scale)); border: 1px solid #939393; border-radius: 15px; background: #0e0e0e; padding: 8px 14px; font-size: calc(16px * var(--scale)); caret-color: var(--primary); }
 #new-text::placeholder { color: #bdbdbd; opacity: 1; }
 #new-text:focus { outline: 0; border-color: #f5f5f5; box-shadow: 0 0 0 1px #f5f5f5; }
-.add-button { width: calc(48px * var(--scale)); height: calc(48px * var(--scale)); flex-shrink: 0; border-radius: 15px; background: var(--primary); color: #111111; display: grid; place-items: center; box-shadow: 0 3px 9px #0002; }
+.add-button { width: calc(42px * var(--scale)); height: calc(42px * var(--scale)); flex-shrink: 0; border-radius: 15px; background: var(--primary); color: #111111; display: grid; place-items: center; box-shadow: 0 3px 9px #0002; }
 .add-button .icon { width: calc(24px * var(--scale)); height: calc(24px * var(--scale)); }
 .add-button:hover:not(:disabled) { background: #ffffff; }
 dialog { position: fixed; top: calc(var(--viewport-top, 0px) + var(--app-height, 100dvh) / 2); bottom: auto; left: 0; right: 0; transform: translateY(-50%); margin: 0 auto; width: min(420px, calc(100% - 32px)); max-height: calc(var(--app-height, 100dvh) - 32px); overflow-y: auto; border: 1px solid #777777; border-radius: 24px; padding: 20px; background: #242424; color: #f5f5f5; box-shadow: 0 24px 80px #0007; }

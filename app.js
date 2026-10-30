@@ -24,6 +24,7 @@ const ui = {
   searchForm: element("search-form"), search: /** @type {HTMLInputElement} */ (element("list-search")), searchClear: element("search-clear"), searchCount: element("search-count"),
   normal: element("scale-normal"), large: element("scale-large"), item: element("kind-item"), heading: element("kind-heading"), divider: element("add-divider"),
   composer: /** @type {HTMLFormElement} */ (element("composer")), input: /** @type {HTMLInputElement} */ (element("new-text")), add: element("add-item"),
+  composerPanel: element("composer-panel"), composerGrip: /** @type {HTMLButtonElement} */ (element("composer-grip")), composerContent: element("composer-content"),
   empty: element("empty-state"), emptyText: element("empty-text"), emptyCreate: element("empty-create"),
   status: element("save-status"), statusText: element("save-status-text"),
   error: element("storage-error"), errorMessage: element("storage-error-message"), retry: element("retry-storage"),
@@ -161,11 +162,14 @@ class LocalStore {
   }
 }
 
-/** @type {{store: LocalStore | null, lists: ShoppingList[], activeId: string | null, large: boolean, kind: 'item' | 'heading', query: string, ready: boolean, pending: number, failed: boolean, editor: EditorContext | null, drag: DragSession | null, refreshPending: boolean}} */
-const state = { store: null, lists: [], activeId: null, large: false, kind: "item", query: "", ready: false, pending: 0, failed: false, editor: null, drag: null, refreshPending: false };
+/** @type {{store: LocalStore | null, lists: ShoppingList[], activeId: string | null, large: boolean, kind: 'item' | 'heading', query: string, ready: boolean, pending: number, failed: boolean, editor: EditorContext | null, drag: DragSession | null, refreshPending: boolean, composerCollapsed: boolean}} */
+const state = { store: null, lists: [], activeId: null, large: false, kind: "item", query: "", ready: false, pending: 0, failed: false, editor: null, drag: null, refreshPending: false, composerCollapsed: false };
 let writeQueue = Promise.resolve();
 let toastTimer = 0;
 let ignoreClickUntil = 0;
+/** @type {{pointerId: number, startY: number, y: number, moved: boolean} | null} */
+let composerDrag = null;
+let ignoreComposerClick = false;
 let editorSaving = false;
 /** @type {HTMLElement | null} */ let dialogReturnFocus = null;
 const channel = typeof BroadcastChannel === "function" ? new BroadcastChannel("einkaufsliste-local-changes") : null;
@@ -360,6 +364,61 @@ function setKind(kind) {
   ui.input.setAttribute("aria-label", kind === "item" ? "Neuer Eintrag" : "Neue Überschrift");
   ui.add.setAttribute("aria-label", kind === "item" ? "Eintrag hinzufügen" : "Überschrift hinzufügen");
   ui.input.focus();
+}
+
+/** @param {boolean} collapsed */
+function setComposerCollapsed(collapsed) {
+  state.composerCollapsed = collapsed;
+  ui.composerPanel.classList.toggle("is-collapsed", collapsed);
+  ui.composerGrip.setAttribute("aria-expanded", String(!collapsed));
+  ui.composerGrip.setAttribute("aria-label", collapsed ? "Eingabeleiste ausklappen" : "Eingabeleiste einklappen");
+  ui.composerGrip.title = collapsed ? "Zum Öffnen nach oben ziehen" : "Zum Einklappen nach unten ziehen";
+  ui.composerContent.inert = collapsed;
+}
+setComposerCollapsed(state.composerCollapsed);
+
+/** @param {PointerEvent} event */
+function startComposerDrag(event) {
+  if (event.button !== 0 || !event.isPrimary || composerDrag) return;
+  composerDrag = { pointerId: event.pointerId, startY: event.clientY, y: event.clientY, moved: false };
+  ui.composerGrip.setPointerCapture(event.pointerId);
+}
+
+/** @param {PointerEvent} event */
+function moveComposerDrag(event) {
+  const drag = composerDrag;
+  if (!drag || event.pointerId !== drag.pointerId) return;
+  drag.y = event.clientY;
+  const delta = drag.y - drag.startY;
+  if (Math.abs(delta) >= 8) {
+    drag.moved = true;
+    ui.composerPanel.classList.add("is-dragging");
+    const offset = state.composerCollapsed ? Math.min(0, delta) : Math.max(0, delta);
+    ui.composerPanel.style.setProperty("--composer-drag-offset", `${offset}px`);
+  }
+}
+
+/** @param {PointerEvent} event */
+function finishComposerDrag(event) {
+  const drag = composerDrag;
+  if (!drag || event.pointerId !== drag.pointerId) return;
+  composerDrag = null;
+  if (ui.composerGrip.hasPointerCapture(event.pointerId)) ui.composerGrip.releasePointerCapture(event.pointerId);
+  const delta = drag.y - drag.startY;
+  if (drag.moved) {
+    ignoreComposerClick = true;
+    if (Math.abs(delta) >= 36) setComposerCollapsed(delta > 0);
+    ui.composerPanel.classList.remove("is-dragging");
+    ui.composerPanel.style.removeProperty("--composer-drag-offset");
+  }
+}
+
+/** @param {PointerEvent} event */
+function cancelComposerDrag(event) {
+  if (event.pointerId !== composerDrag?.pointerId) return;
+  composerDrag = null;
+  ui.composerPanel.classList.remove("is-dragging");
+  ui.composerPanel.style.removeProperty("--composer-drag-offset");
 }
 
 /** @param {ItemKind} kind @param {string} [text] @returns {Promise<boolean>} */
@@ -622,6 +681,15 @@ ui.composer.addEventListener("submit", event => {
   ui.input.value = "";
   void addItem(state.kind, text).then(saved => { if (!saved && !ui.input.value) ui.input.value = text; });
   ui.input.focus();
+});
+ui.composerGrip.addEventListener("pointerdown", startComposerDrag);
+ui.composerGrip.addEventListener("pointermove", moveComposerDrag);
+ui.composerGrip.addEventListener("pointerup", finishComposerDrag);
+ui.composerGrip.addEventListener("pointercancel", cancelComposerDrag);
+ui.composerGrip.addEventListener("lostpointercapture", cancelComposerDrag);
+ui.composerGrip.addEventListener("click", event => {
+  if (ignoreComposerClick) { ignoreComposerClick = false; event.preventDefault(); return; }
+  setComposerCollapsed(!state.composerCollapsed);
 });
 ui.list.addEventListener("change", event => {
   const checkbox = event.target;

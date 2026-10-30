@@ -73,20 +73,27 @@
       </div>
     </main>
 
-    <footer class="composer-panel">
-      <div class="composer-options">
-        <div class="kind-switch" role="group" aria-label="Neues Element">
-          <button type="button" id="kind-item" aria-pressed="true" disabled><svg class="icon" aria-hidden="true"><use href="#i-box"/></svg>Eintrag</button>
-          <button type="button" id="kind-heading" aria-pressed="false" disabled><svg class="icon" aria-hidden="true"><use href="#i-heading"/></svg>Überschrift</button>
-          <button type="button" id="add-divider" aria-label="Trennlinie hinzufügen" title="Trennlinie hinzufügen" disabled><svg class="icon" aria-hidden="true"><use href="#i-rule"/></svg></button>
-        </div>
-        <span class="save-status" id="save-status" role="status" aria-live="polite"><span class="status-dot"></span><span id="save-status-text">Laden …</span></span>
+    <footer class="composer-panel" id="composer-panel">
+      <div class="composer-grip-row">
+        <button class="composer-grip" id="composer-grip" type="button" aria-label="Eingabeleiste einklappen" aria-controls="composer-content" aria-expanded="true" aria-describedby="drag-help" title="Zum Einklappen nach unten ziehen">
+          <span class="composer-grip-indicator" aria-hidden="true"></span>
+        </button>
       </div>
-      <form id="composer" autocomplete="off">
-        <label class="sr-only" for="new-text">Neuer Eintrag</label>
-        <input id="new-text" name="text" type="text" maxlength="500" placeholder="Eintrag hinzufügen" enterkeyhint="done" disabled>
-        <button class="add-button" id="add-item" type="submit" aria-label="Eintrag hinzufügen" disabled><svg class="icon" aria-hidden="true"><use href="#i-plus"/></svg></button>
-      </form>
+      <div class="composer-content" id="composer-content">
+        <div class="composer-options">
+          <div class="kind-switch" role="group" aria-label="Neues Element">
+            <button type="button" id="kind-item" aria-pressed="true" disabled><svg class="icon" aria-hidden="true"><use href="#i-box"/></svg>Eintrag</button>
+            <button type="button" id="kind-heading" aria-pressed="false" disabled><svg class="icon" aria-hidden="true"><use href="#i-heading"/></svg>Überschrift</button>
+            <button type="button" id="add-divider" aria-label="Trennlinie hinzufügen" title="Trennlinie hinzufügen" disabled><svg class="icon" aria-hidden="true"><use href="#i-rule"/></svg></button>
+          </div>
+          <span class="save-status" id="save-status" role="status" aria-live="polite"><span class="status-dot"></span><span id="save-status-text">Laden …</span></span>
+        </div>
+        <form id="composer" autocomplete="off">
+          <label class="sr-only" for="new-text">Neuer Eintrag</label>
+          <input id="new-text" name="text" type="text" maxlength="500" placeholder="Eintrag hinzufügen" enterkeyhint="done" disabled>
+          <button class="add-button" id="add-item" type="submit" aria-label="Eintrag hinzufügen" disabled><svg class="icon" aria-hidden="true"><use href="#i-plus"/></svg></button>
+        </form>
+      </div>
     </footer>
   </div>
 
@@ -101,6 +108,6 @@
   </dialog>
   <div class="toast" id="toast" hidden></div>
   <div class="sr-only" id="announcer" role="status" aria-live="polite" aria-atomic="true"></div>
-  <p class="sr-only" id="drag-help">Zum Verschieben am Griff ziehen oder den Griff fokussieren und die Pfeiltasten nach oben und unten verwenden. Antippen öffnet weitere Optionen.</p>
+  <p class="sr-only" id="drag-help">Listenelemente lassen sich am Griff ziehen oder mit den Pfeiltasten nach oben und unten verschieben. Die Eingabeleiste lässt sich am Griff nach unten einklappen und nach oben wieder öffnen.</p>
 </body>
 </html>
