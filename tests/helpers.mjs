@@ -10,8 +10,10 @@ const section=(start,end)=>source.slice(source.indexOf(start),source.indexOf(end
 const protocol=section('// BEGIN SHARE PROTOCOL','// END SHARE PROTOCOL');
 const storage=section('/** @returns {string} */\nfunction uuid','// BEGIN SHARE SYNC');
 const sync=section('// BEGIN SHARE SYNC','// END SHARE SYNC');
-export function browser(origin, indexedDB=new IDBFactory(), fetcher=fetch) {
-  const context=vm.createContext({crypto:webcrypto,indexedDB,window:{indexedDB},TextEncoder,TextDecoder,btoa,atob,structuredClone,AbortController,AbortSignal,fetch:fetcher,console,showFatal:message=>{throw new Error(message);}});
+const dispatchers=new Map();
+export function registerTransport(origin,handler) { if (handler) dispatchers.set(origin,handler); else dispatchers.delete(origin); }
+export function browser(origin, indexedDB=new IDBFactory(), fetcher=dispatchers.get(origin)||fetch) {
+  const context=vm.createContext({crypto:webcrypto,indexedDB,window:{indexedDB},TextEncoder,TextDecoder,btoa,atob,structuredClone,AbortController,AbortSignal,URL,fetch:fetcher,console,showFatal:message=>{throw new Error(message);}});
   vm.runInContext(protocol+'\n'+storage+'\n'+sync+'\nglobalThis.api={P:ShareProtocol,LocalStore,ShareTransport,ShareSync,ShareError,makeList,uuid};',context);
   const api=context.api;
   return {...api,indexedDB,transport:new api.ShareTransport(origin),async open(){this.store=await api.LocalStore.open();await this.store.initialize();this.engine=new api.ShareSync(this.store,this.transport);return this;},async sync(id){return this.engine.sync(id,new AbortController().signal);}};
@@ -50,7 +52,7 @@ export async function fixture(t) {
   return {url:api.url,documents,repository,couch,advance(ms){now+=ms;},get writes(){return contentWrites;},get security(){return security;}};
 }
 export async function request(f,path,token,method='GET',body,headers={}) {
-  const response=await fetch(f.url+path,{method,headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json',...headers},body:body===undefined?undefined:JSON.stringify(body)});
+  const response=await (f.fetch || fetch)(f.url+path,{method,headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json',...headers},body:body===undefined?undefined:JSON.stringify(body)});
   return {status:response.status,revision:response.headers.get('ETag'),data:await response.json().catch(()=>null),headers:response.headers};
 }
 export async function owner(f,name='Geheimer Wocheneinkauf') {

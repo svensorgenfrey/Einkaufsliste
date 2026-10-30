@@ -200,7 +200,8 @@ class ShareTransport {
   constructor(origin) { this.origin=origin; }
   /** @param {string} path @param {string} token @param {string} [method] @param {unknown} [body] @param {AbortSignal} [signal] @param {Record<string,string>} [headers] */
   async request(path,token,method='GET',body=undefined,signal=undefined,headers={}) {
-    const response = await fetch(this.origin+path,{method,headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json',...headers},body:body===undefined?undefined:JSON.stringify(body),signal:signal ? AbortSignal.any([signal,AbortSignal.timeout(12000)]) : AbortSignal.timeout(12000),cache:'no-store',credentials:'omit',redirect:'error',referrerPolicy:'no-referrer'});
+    if (!path.startsWith('/api/')) throw new Error('Ungültiger API-Pfad.');
+    const response = await fetch(new URL(path,this.origin),{method,headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json',...headers},body:body===undefined?undefined:JSON.stringify(body),signal:signal ? AbortSignal.any([signal,AbortSignal.timeout(12000)]) : AbortSignal.timeout(12000),cache:'no-store',credentials:'same-origin',redirect:'error',referrerPolicy:'no-referrer'});
     const data = response.status===204 || response.status===304 ? null : await response.json().catch(()=>null);
     if (!response.ok && response.status!==304) throw new ShareError(response.status,data?.error || 'Server nicht erreichbar.');
     return {status:response.status,data,revision:response.headers.get('ETag')};

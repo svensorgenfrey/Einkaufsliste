@@ -2,7 +2,7 @@
 
 Statische mobile Einkaufsliste mit IndexedDB. Ohne Freigabe bleiben Listen, Namen, Elemente, Reihenfolge und Häkchen ausschließlich im Browser. Das Frontend besteht aus `index.html`, `style.css` und `app.js`; es benötigt weder einen Build noch eine Node.js-Laufzeit im Browser. `app.js` wird mit JSDoc-Typen und TypeScripts strikter JavaScript-Prüfung geprüft.
 
-Optionales Teilen ergänzt eine Node.js-API und eine private CouchDB. Die API liefert auch die drei statischen Dateien aus. Alle Skripte und die QR-Bibliothek werden lokal ausgeliefert; es gibt keine CDNs, Konten, Nutzer-IDs, Geräte-IDs, Analyse-Skripte oder Hintergrundsynchronisierung.
+Optionales Teilen wird auf Sites durch einen Cloudflare Worker mit privater D1-Datenbank bereitgestellt. Derselbe Worker liefert die drei statischen Frontend-Dateien und die API unter derselben HTTPS-Adresse aus. Der Browser benötigt keine gesonderte API-URL oder Datenbank-Zugangsdaten. Der bisherige Node.js-/CouchDB-Betrieb bleibt als optionale Alternative erhalten; beide Varianten verwenden denselben API-Kern. Alle Skripte und die QR-Bibliothek werden lokal ausgeliefert; es gibt keine CDNs, Konten, Nutzer-IDs, Geräte-IDs, Analyse-Skripte oder Hintergrundsynchronisierung.
 
 ## Bedienung
 
@@ -21,7 +21,31 @@ Nach dem ersten Inhaltsupload kann der Besitzer über die Listenoptionen eine JS
 
 **Besitzer-Sicherung importieren** ist auch ohne vorhandene Liste erreichbar. Import ist nur auf derselben Serveradresse möglich; die Adresse aus der Datei wird niemals ungeprüft für Netzwerkzugriffe verwendet. Die App prüft Besitzer- und Teilnehmerzugriff und entschlüsselt den Serverstand, bevor sie ihn lokal installiert. Eine bereits vorhandene Kopie wird vereinigt, nicht ersetzt. Nach Beenden und erneutem Teilen ist eine neue Sicherung erforderlich. Ohne lokale Schlüssel oder Sicherung kann der Server nichts wiederherstellen.
 
-## Serverbetrieb mit HTTPS
+## Standardbetrieb auf Sites: Worker und D1
+
+Sites-Adresse: https://einkaufsliste-sync-f6c82a.sven38419.chatgpt.site (Zugriff entsprechend der Sites-Freigabe).
+
+`.openai/hosting.json` bindet diese Anwendung an ihre Site und deklariert D1 als `DB`. Sites provisioniert und verbindet die Datenbank. Es werden keine CouchDB-Instanz und kein Docker-Container auf Sites benötigt.
+
+`server/api.mjs` enthält die plattformunabhängige Fetch-API. `server/d1.mjs` speichert Freigaben als JSON-Dokumente mit separater Revision. Ein atomisches bedingtes SQL-Update verhindert verlorene Änderungen und doppelte Einlösungen. Sicherheitsabfragen lesen mit D1-Sessions vom Primary. Die Tabelle `shares` enthält nur zufällige Kennungen, Berechtigungshashes, Einladungsstatus und Chiffrate.
+
+```sh
+npm ci
+npm run build
+npm run validate
+```
+
+Der Build bündelt API, D1-Adapter und die unveränderten drei Frontend-Dateien zu einem eigenständigen Worker-ES-Modul unter `dist/server/index.js`. Es gibt keine extern geladenen Anwendungsskripte, keine React-App und keinen Frontend-Build im Browser. `worker/index.js` ist der Einstieg; `scripts/build-worker.mjs` erstellt das Artefakt. Die Datenbank wird ausschließlich durch die versionierten SQL-Migrationen unter `drizzle/` angelegt, niemals während eines API-Aufrufs.
+
+Bei Schemaänderungen `db/schema.ts` bearbeiten, `npm run db:generate` ausführen und erzeugte SQL-/Metadaten prüfen und committen. Angewendete Migrationen sind unveränderlich; Sites wendet neue Migrationen vor der Worker-Veröffentlichung an. GitHub bleibt der Ursprung dieses Repositorys; die Sites-Veröffentlichung erhält einen zusätzlichen, von Sites verwalteten Quellstand.
+
+`PUBLIC_ORIGIN` wird in Sites auf die HTTPS-Adresse der Anwendung gesetzt. Browserzugriffe gehen ausschließlich an `/api/…` derselben Origin. Plattform-Cookies werden nur an diese Origin gesendet, damit auch eine private Sites-Veröffentlichung funktioniert. Die Listen-API speichert oder verwendet keine von Sites weitergereichten Nutzeridentitäten. Browser-Schlüssel, Besitzer- und Teilnehmer-Tokens werden niemals als Sites-Umgebungsvariablen benötigt.
+
+Neue Sites starten privat. Eine private Site verlangt den Plattform-Login und ist zunächst nur für den Besitzer erreichbar. Teilen ohne Plattform-Login erfordert eine ausdrücklich freigegebene öffentliche Site; einzelne Listen bleiben durch Tokens und Ende-zu-Ende-Verschlüsselung geschützt. Es wird kein Plattform-Zugangstoken im Browsercode hinterlegt.
+
+`GET /healthz` prüft bei D1 auch, dass die migrierte Tabelle verfügbar ist, und antwortet mit `{ "ok": true, "storage": "d1" }`. Die API veröffentlicht weder SQL-Zugang noch eine Liste vorhandener Freigaben. Größenlimits bleiben unverändert. Die flüchtigen Anfragelimits gelten auf Sites pro Worker-Isolate und sind kein globales, über alle Edge-Standorte koordiniertes Limit.
+
+## Optionaler eigener Server mit Node.js, CouchDB und HTTPS
 
 Voraussetzungen: Docker Engine mit Compose, eine eigene Domain mit A/AAAA-Eintrag auf den Server und erreichbare Ports 80/443. Das folgende Beispiel ist für einen einzelnen Server vorgesehen.
 
@@ -70,7 +94,7 @@ Nur die ausgewählte geteilte Liste synchronisiert bei sichtbarer App: 300 ms na
 
 Die verschlüsselte Struktur verwendet logische Zähler und pro Änderung einen zufälligen Gleichstandsentscheid. Die Geräteuhr entscheidet keine Inhaltskonflikte. Name, Inhalt/Typ pro Element, Checkboxzustand und gemeinsame Reihenfolge sind getrennte Register. Element-IDs vereinigen unabhängige Ergänzungen; verschlüsselte Löschmarker verhindern die Wiederherstellung aus alten Offline-Kopien. Die gewinnende Reihenfolge wird um weitere lebende IDs deterministisch ergänzt. Löschmarker bleiben erhalten und zählen gegen die Größenbegrenzung.
 
-Bedingte CouchDB-Schreibzugriffe verhindern blindes Überschreiben. Bei 409 liest die App erneut, entschlüsselt, vereinigt mit dem neuesten lokalen Stand und versucht nochmals zu schreiben. Ein Upload bestätigt nur genau den gesendeten Stand. Änderungen währenddessen bleiben ausstehend. Ein unveränderter Klartext wird nicht erneut verschlüsselt und hochgeladen.
+Bedingte Revisionszugriffe über D1 beziehungsweise CouchDB verhindern blindes Überschreiben. Bei 409 liest die App erneut, entschlüsselt, vereinigt mit dem neuesten lokalen Stand und versucht nochmals zu schreiben. Ein Upload bestätigt nur genau den gesendeten Stand. Änderungen währenddessen bleiben ausstehend. Ein unveränderter Klartext wird nicht erneut verschlüsselt und hochgeladen.
 
 ## API
 
@@ -88,24 +112,26 @@ Alle Antworten verwenden `Cache-Control: no-store`. Bearer-Tokens stehen ausschl
 
 Der Sperrmarker bleibt gespeichert; eine alte Freigabekennung kann nicht neu angelegt werden. Falsche Zugangstokens erhalten eine einheitliche 404-Antwort. Alte gültige Zugänge erhalten nach Sperrung 410. Content-Hülle: `{v:1,iv:<base64url>,ct:<base64url>}`. Größenlimits: 2 MiB HTTP-Body, maximal 1.400.000 Base64url-Zeichen im Inhaltschiffrat, 4.096 im Einladungspaket, 10.000 Elemente einschließlich Löschmarkern im entschlüsselten Dokument. Fehler lassen die lokale Kopie bestehen.
 
-Limits pro IP: 600 API-Anfragen/Minute und 30 neue Freigaben/Stunde; maximal 10.000 flüchtige Limit-Einträge. Diese Grenzen ersetzen bei öffentlichem Betrieb keinen Schutz gegen verteilten Missbrauch. Caddy-Accesslogs sind nicht aktiviert. Die API protokolliert keine Anfrageadressen, Header, Bodies, Schlüssel oder Tokens.
+Flüchtige Limits pro IP (auf Sites pro Worker-Isolate): 600 API-Anfragen/Minute und 30 neue Freigaben/Stunde; maximal 10.000 flüchtige Limit-Einträge. Diese Grenzen ersetzen bei öffentlichem Betrieb keinen Schutz gegen verteilten Missbrauch. Caddy-Accesslogs sind nicht aktiviert. Die API protokolliert keine Anfrageadressen, Header, Bodies, Schlüssel oder Tokens.
 
 ## Prüfung
 
-Node.js 24 und npm sind nur für Serverentwicklung und Prüfungen erforderlich:
+Node.js 24 und npm sind nur für Backend-Builds, Entwicklung und Prüfungen erforderlich:
 
 ```sh
-cd server
 npm ci
+npm ci --prefix server
+npm run build
+npm run validate
 npm run check
 npm test
 ```
 
-Die Tests laden exakt den Protokoll-, IndexedDB- und Sync-Code aus `app.js`, verwenden voneinander unabhängige IndexedDB-Instanzen und echte lokale HTTP-Anfragen. Ein begrenzter CouchDB-HTTP-Testadapter prüft den Repository-Vertrag und Revisionkonflikte. **Dieser Adapter ist kein echter CouchDB-Server.** Der Docker-Produktionspfad muss zusätzlich auf einem Docker-berechtigten Host geprüft werden. Ein unabhängiger QR-Decoder prüft den eingebundenen Generator.
+Die Tests laden exakt den Protokoll-, IndexedDB- und Sync-Code aus `app.js`, verwenden voneinander unabhängige IndexedDB-Instanzen und echte lokale HTTP-Anfragen. Der gebaute Worker wird zusätzlich in Miniflare/workerd mit echter lokaler D1-Emulation geprüft: Migration, atomische Revisionen, parallele Claims, drei unabhängige Browser-Speicher, Wiederherstellung, Sperrung und Auslieferung der Frontend-Dateien. Für den optionalen CouchDB-Betrieb prüft ein begrenzter CouchDB-HTTP-Testadapter den Repository-Vertrag und Revisionkonflikte. **Dieser Adapter ist kein echter CouchDB-Server.** Der Docker-Produktionspfad muss zusätzlich auf einem Docker-berechtigten Host geprüft werden. Ein unabhängiger QR-Decoder prüft den eingebundenen Generator.
 
 Abgedeckt werden unter anderem ausstehende/abgelaufene/abgebrochene Einladungen, erster Upload, parallele Claims, Antwortverlust, drei Geräte, falsche Tokens/Schlüssel und veränderte Chiffrate, Offline-Speicherung, Änderungen während Uploads, Löschmarker, parallele Sortierungen, Tab-Konkurrenz, Sichtbarkeit/Abbruch/Backoff, Sperren/erneutes Teilen und Besitzer-Wiederherstellung.
 
-Prüfstand der Umsetzung: 24 automatisierte Tests, strikte TypeScript-Prüfung und `docker compose --env-file .env.example config --quiet` erfolgreich. Die lokale Browser-Prüfung mit getrennten Ursprüngen bestätigte QR-Annahme, Wartestatus, Änderungen in beide Richtungen, 320/390 Pixel und serverbestätigten Entzug bei erhaltenen lokalen Kopien. Der echte Containerstart konnte mangels Docker-Daemon-Berechtigung nicht durchgeführt werden.
+Prüfstand nach der Sites-Portierung: 26 automatisierte Tests einschließlich echter lokaler Worker-/D1-Emulation, strikte TypeScript-Prüfung und `docker compose --env-file .env.example config --quiet` erfolgreich. Die lokale Browser-Prüfung mit getrennten Ursprüngen bestätigte QR-Annahme, Wartestatus, Änderungen in beide Richtungen, 320/390 Pixel und serverbestätigten Entzug bei erhaltenen lokalen Kopien. Der echte Containerstart konnte mangels Docker-Daemon-Berechtigung nicht durchgeführt werden.
 
 Browser-Smokecheck: private Liste bearbeiten, QR im zweiten Speicher öffnen, Fragmententfernung und Bestätigung prüfen, Wartestatus vor Erstupload, Änderungen in beide Richtungen, 320/390-Pixel-Portrait, 100/150 Prozent, Suche und einklappbare Eingabe. Physische Smartphone-Kamera und reale mobile Chrome-/Safari-/Firefox-Versionen separat prüfen; automatisierte Tests und die lokale Browser-Vorschau ersetzen diese Geräteprüfung nicht.
 

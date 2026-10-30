@@ -1,0 +1,17 @@
+import { readFile, mkdir, writeFile, cp, rm } from 'node:fs/promises';
+import { fileURLToPath } from 'node:url';
+const root=new URL('../',import.meta.url);
+const read=name=>readFile(new URL(name,root),'utf8');
+const assets=Object.fromEntries(await Promise.all(['index.html','style.css','app.js'].map(async name=>[name,await read(name)])));
+const core=(await read('server/api.mjs')).replace(/^export /gm,'');
+const repository=(await read('server/d1.mjs')).replace(/^export /gm,'');
+const entry=(await read('worker/index.js')).replace(/^import .*;\n/gm,'');
+const source=`// Generated from the tracked API, D1 adapter and three frontend files.\n${core}\n${repository}\nconst ASSETS=${JSON.stringify(assets)};\n${entry}`;
+if (/^import\s/m.test(source)) throw new Error('Worker artifact must be self contained');
+await rm(new URL('dist/',root),{recursive:true,force:true});
+await mkdir(new URL('dist/server/',root),{recursive:true});
+await mkdir(new URL('dist/.openai/',root),{recursive:true});
+await writeFile(new URL('dist/server/index.js',root),source);
+await cp(new URL('.openai/hosting.json',root),new URL('dist/.openai/hosting.json',root));
+await cp(new URL('drizzle/',root),new URL('dist/.openai/drizzle/',root),{recursive:true});
+console.log('Built '+fileURLToPath(new URL('dist/',root)));
