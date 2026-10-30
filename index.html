@@ -46,15 +46,15 @@
           </div>
         </div>
       </div>
-      <form class="search-bar" id="search-form" role="search" autocomplete="off">
-        <svg class="icon" aria-hidden="true"><use href="#i-search"/></svg>
-        <label class="sr-only" for="list-search">Aktuelle Liste durchsuchen</label>
-        <input id="list-search" type="search" placeholder="Liste durchsuchen" maxlength="100" enterkeyhint="search" spellcheck="false" disabled>
-        <span class="search-count" id="search-count" role="status" aria-live="polite" hidden></span>
-        <button class="search-clear" id="search-clear" type="button" aria-label="Suche leeren" hidden><svg class="icon" aria-hidden="true"><use href="#i-close"/></svg></button>
-      </form>
       <div class="tools-bar">
-        <button class="all-button" id="toggle-all" disabled><svg class="icon" aria-hidden="true"><use href="#i-all"/></svg><span id="all-label">Alle abhaken</span><span class="count" id="item-count">0 / 0</span></button>
+        <button class="all-button" id="toggle-all" disabled><svg class="icon" aria-hidden="true"><use href="#i-all"/></svg><span class="sr-only" id="all-label">Alle abhaken</span><span class="count" id="item-count">0 / 0</span></button>
+        <form class="search-bar" id="search-form" role="search" autocomplete="off">
+          <svg class="icon" aria-hidden="true"><use href="#i-search"/></svg>
+          <label class="sr-only" for="list-search">Aktuelle Liste durchsuchen</label>
+          <input id="list-search" type="search" placeholder="Suche" maxlength="100" enterkeyhint="search" spellcheck="false" disabled>
+          <span class="search-count sr-only" id="search-count" role="status" aria-live="polite" hidden></span>
+          <button class="search-clear" id="search-clear" type="button" aria-label="Suche leeren" hidden><svg class="icon" aria-hidden="true"><use href="#i-close"/></svg></button>
+        </form>
         <div class="scale-switch" role="group" aria-label="Ansichtsgröße">
           <button id="scale-normal" aria-label="Normale Ansicht, 100 Prozent" aria-pressed="true" disabled>100<span>%</span></button>
           <button id="scale-large" aria-label="Vergrößerte Ansicht, 150 Prozent" aria-pressed="false" disabled>150<span>%</span></button>

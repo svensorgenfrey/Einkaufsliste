@@ -331,6 +331,7 @@ function render() {
   ui.allLabel.textContent = `${searching ? "Treffer" : "Alle"} ${allChecked ? "öffnen" : "abhaken"}`;
   const scope = searching ? "Gefundene Checkboxen" : "Alle Checkboxen";
   ui.all.setAttribute("aria-label", `${scope} ${allChecked ? "als offen markieren" : "abhaken"}`);
+  ui.all.title = ui.all.getAttribute("aria-label") || "";
   ui.count.textContent = `${checked} / ${checks.length}`;
   disable(ui.all, !state.ready || !checks.length);
   ui.progress.style.width = `${checks.length ? checked / checks.length * 100 : 0}%`;
