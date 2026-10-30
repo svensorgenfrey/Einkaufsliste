@@ -117,3 +117,16 @@ test('two tabs on the same IndexedDB commit concurrent local edits and metadata 
   assert.equal(list.items[0].text,'Umbenannt');assert.equal(list.items[0].checked,true);assert.equal(record.doc.items[list.items[0].id].checked.value,true);assert.equal(record.doc.items[list.items[0].id].content.value.text,'Umbenannt');assert.equal(record.dirty,true);
   tab.store.database.close();
 });
+
+test('failed static-host registration can resume on the configured API without losing data or secrets',async()=>{
+  const client=await browser('https://api.example.test').open(),list=client.makeList('Meine lokale Liste');list.items=[item('Bleibt erhalten')];list.items[0].checked=true;await client.store.create(list);
+  const previous=await client.store.prepareShare(list.id,'https://sorgenfrey.de'),before=await client.store.syncState(list.id);
+  const pending={id:list.id,invitationId:client.P.secret(),claimToken:client.P.secret(),wrapKey:client.P.secret(),box:null,expiresAt:null};pending.box=await client.P.invitationBox(previous,pending.invitationId,pending.wrapKey);await client.store.saveInvitation(pending);
+  const migrated=await client.store.prepareShare(list.id,'https://api.example.test');assert.equal(migrated.origin,'https://api.example.test');
+  for(const field of ['id','remoteId','key','ownerToken','memberToken'])assert.equal(migrated[field],previous[field]);
+  assert.equal(client.P.canonical((await client.store.syncState(list.id)).doc),client.P.canonical(before.doc));
+  assert.deepEqual(plain(await client.store.invitation(list.id)),plain(pending));
+  const stored=(await client.store.snapshot()).lists.find(l=>l.id===list.id);assert.equal(stored.items[0].text,'Bleibt erhalten');assert.equal(stored.items[0].checked,true);
+  await client.store.markRegistered(migrated);
+  assert.equal((await client.store.prepareShare(list.id,'https://different-api.test')).origin,'https://api.example.test');
+});

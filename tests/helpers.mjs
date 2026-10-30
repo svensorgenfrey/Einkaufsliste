@@ -25,7 +25,7 @@ export async function listen(handler) {
 }
 
 /** A small HTTP contract fixture, not a substitute for testing a real CouchDB deployment. */
-export async function fixture(t) {
+export async function fixture(t,options={}) {
   const documents=new Map(); let initialized=false; let now=Date.now(); let contentWrites=0; let security=null;
   const couch=await listen(async(req,res)=>{
     const send=(status,data)=>{res.writeHead(status,{'Content-Type':'application/json'});res.end(JSON.stringify(data));};
@@ -47,7 +47,7 @@ export async function fixture(t) {
     send(405,{});
   });
   const repository=new CouchRepository({url:couch.url,user:'test',password:'password'}); await repository.initialize();
-  const api=await listen(createApp({repository,clock:()=>now,rateLimit:10000}));
+  const api=await listen(createApp({repository,clock:()=>now,rateLimit:10000,...options}));
   t.after(async()=>{await api.close();await couch.close();});
   return {url:api.url,documents,repository,couch,advance(ms){now+=ms;},get writes(){return contentWrites;},get security(){return security;}};
 }

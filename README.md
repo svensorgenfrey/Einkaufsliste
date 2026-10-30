@@ -2,7 +2,7 @@
 
 Statische mobile Einkaufsliste mit IndexedDB. Ohne Freigabe bleiben Listen, Namen, Elemente, Reihenfolge und Häkchen ausschließlich im Browser. Das Frontend besteht aus `index.html`, `style.css` und `app.js`; es benötigt weder einen Build noch eine Node.js-Laufzeit im Browser. `app.js` wird mit JSDoc-Typen und TypeScripts strikter JavaScript-Prüfung geprüft.
 
-Optionales Teilen wird auf Sites durch einen Cloudflare Worker mit privater D1-Datenbank bereitgestellt. Derselbe Worker liefert die drei statischen Frontend-Dateien und die API unter derselben HTTPS-Adresse aus. Der Browser benötigt keine gesonderte API-URL oder Datenbank-Zugangsdaten. Der bisherige Node.js-/CouchDB-Betrieb bleibt als optionale Alternative erhalten; beide Varianten verwenden denselben API-Kern. Alle Skripte und die QR-Bibliothek werden lokal ausgeliefert; es gibt keine CDNs, Konten, Nutzer-IDs, Geräte-IDs, Analyse-Skripte oder Hintergrundsynchronisierung.
+Optionales Teilen wird auf Sites durch einen Cloudflare Worker mit privater D1-Datenbank bereitgestellt. Derselbe Worker liefert die drei statischen Frontend-Dateien und die API unter derselben HTTPS-Adresse aus. Die vorkonfigurierte API-Adresse erlaubt auch ein getrennt auf eigenem Webspace ausgeliefertes Frontend; Datenbank-Zugangsdaten gelangen nicht in den Browser. Der bisherige Node.js-/CouchDB-Betrieb bleibt als optionale Alternative erhalten; beide Varianten verwenden denselben API-Kern. Alle Skripte und die QR-Bibliothek werden lokal ausgeliefert; es gibt keine CDNs, Konten, Nutzer-IDs, Geräte-IDs, Analyse-Skripte oder Hintergrundsynchronisierung.
 
 ## Bedienung
 
@@ -39,11 +39,29 @@ Der Build bündelt API, D1-Adapter und die unveränderten drei Frontend-Dateien 
 
 Bei Schemaänderungen `db/schema.ts` bearbeiten, `npm run db:generate` ausführen und erzeugte SQL-/Metadaten prüfen und committen. Angewendete Migrationen sind unveränderlich; Sites wendet neue Migrationen vor der Worker-Veröffentlichung an. GitHub bleibt der Ursprung dieses Repositorys; die Sites-Veröffentlichung erhält einen zusätzlichen, von Sites verwalteten Quellstand.
 
-`PUBLIC_ORIGIN` wird in Sites auf die HTTPS-Adresse der Anwendung gesetzt. Browserzugriffe gehen ausschließlich an `/api/…` derselben Origin. Plattform-Cookies werden nur an diese Origin gesendet, damit auch eine private Sites-Veröffentlichung funktioniert. Die Listen-API speichert oder verwendet keine von Sites weitergereichten Nutzeridentitäten. Browser-Schlüssel, Besitzer- und Teilnehmer-Tokens werden niemals als Sites-Umgebungsvariablen benötigt.
+`PUBLIC_ORIGIN` wird in Sites auf die HTTPS-Adresse der Anwendung gesetzt. Das Frontend liest die API-Origin aus dem Meta-Element `shopping-api-origin` in `index.html`. API-Pfade gehen ausschließlich an diese konfigurierte Origin. Bei getrenntem Frontend werden keine Cookies mitgesendet. Plattform-Cookies werden nur bei gleicher Origin verwendet, damit auch eine private Sites-Veröffentlichung funktioniert. Die Listen-API speichert oder verwendet keine von Sites weitergereichten Nutzeridentitäten. Browser-Schlüssel, Besitzer- und Teilnehmer-Tokens werden niemals als Sites-Umgebungsvariablen benötigt.
 
 Neue Sites starten privat. Eine private Site verlangt den Plattform-Login und ist zunächst nur für den Besitzer erreichbar. Teilen ohne Plattform-Login erfordert eine ausdrücklich freigegebene öffentliche Site; einzelne Listen bleiben durch Tokens und Ende-zu-Ende-Verschlüsselung geschützt. Es wird kein Plattform-Zugangstoken im Browsercode hinterlegt.
 
 `GET /healthz` prüft bei D1 auch, dass die migrierte Tabelle verfügbar ist, und antwortet mit `{ "ok": true, "storage": "d1" }`. Die API veröffentlicht weder SQL-Zugang noch eine Liste vorhandener Freigaben. Größenlimits bleiben unverändert. Die flüchtigen Anfragelimits gelten auf Sites pro Worker-Isolate und sind kein globales, über alle Edge-Standorte koordiniertes Limit.
+
+## Frontend auf sorgenfrey.de oder eigenem Webspace
+
+Die drei Dateien `index.html`, `style.css` und `app.js` können unverändert gemeinsam nach `https://sorgenfrey.de/einkaufsliste/` kopiert werden. In `index.html` steht bereits:
+
+```html
+<meta name="shopping-api-origin" content="https://einkaufsliste-sync-f6c82a.sven38419.chatgpt.site">
+```
+
+`PUBLIC_ORIGIN` bleibt die Sites-Adresse. Die zusätzliche Sites-Umgebungsvariable `ALLOWED_APP_ORIGINS=https://sorgenfrey.de` erlaubt API-Zugriffe gezielt von deinem Webspace. Weitere Frontend-Origins können bei Bedarf als kommagetrennte vollständige Origins ergänzt werden; ein Pfad gehört nicht in diese Liste. Nicht aufgeführte fremde Origins erhalten keine CORS-Freigabe.
+
+Die API unterstützt OPTIONS-Vorabfragen und gibt ETag und `X-Share-Revision` für zugelassene Frontends frei. Die Berechtigungsprüfung über die geheimen Listentokens bleibt für alle Daten- und Verwaltungsaktionen unverändert erforderlich. Fremde Cookies werden nicht übertragen, und es werden keine Nutzerkonten eingeführt. Private Listen bleiben in der IndexedDB der Frontend-Adresse gespeichert; beim Kopieren neuer Dateien auf denselben Webspace müssen Browserdaten weder gelöscht noch exportiert werden.
+
+Ein noch nicht registrierter Freigabeversuch gegen einen rein statischen Webserver wird beim erneuten Teilen auf die konfigurierte API umgestellt. Listeninhalt, Schlüssel und Einladungskennung bleiben dabei erhalten. Bereits registrierte Freigaben werden aus Sicherheitsgründen nicht still auf einen anderen Backend-Server übertragen. Sicherungen sind an die API-Adresse gebunden, nicht an den Host der Frontend-Dateien.
+
+Die Einladungslinks verwenden weiterhin die Adresse des gerade geöffneten Frontends, einschließlich `/einkaufsliste/`; Empfänger öffnen somit dieselbe App und nutzen deren konfigurierte API. Nach dem Ersetzen der drei Dateien die Seite neu laden. Der Script-Link enthält für diese Änderung eine neue Cache-Kennung.
+
+Für den optionalen eigenen Node.js-/CouchDB-Server kann `shopping-api-origin` auf die eigene API-Origin gesetzt oder für dieselbe Origin leer gelassen werden. `ALLOWED_APP_ORIGINS` wird auch vom Node-Adapter unterstützt. Die Sicherheitsheader des jeweiligen Frontend-Hosts müssen bei eigener CSP die konfigurierte API als `connect-src` erlauben.
 
 ## Optionaler eigener Server mit Node.js, CouchDB und HTTPS
 
@@ -131,7 +149,7 @@ Die Tests laden exakt den Protokoll-, IndexedDB- und Sync-Code aus `app.js`, ver
 
 Abgedeckt werden unter anderem ausstehende/abgelaufene/abgebrochene Einladungen, erster Upload, parallele Claims, Antwortverlust, drei Geräte, falsche Tokens/Schlüssel und veränderte Chiffrate, Offline-Speicherung, Änderungen während Uploads, Löschmarker, parallele Sortierungen, Tab-Konkurrenz, Sichtbarkeit/Abbruch/Backoff, Sperren/erneutes Teilen und Besitzer-Wiederherstellung.
 
-Prüfstand nach der Sites-Portierung: 28 automatisierte Tests einschließlich echter lokaler Worker-/D1-Emulation, strikte TypeScript-Prüfung und `docker compose --env-file .env.example config --quiet` erfolgreich. Die lokale Browser-Prüfung mit getrennten Ursprüngen bestätigte QR-Annahme, Wartestatus, Änderungen in beide Richtungen, 320/390 Pixel und serverbestätigten Entzug bei erhaltenen lokalen Kopien. Der echte Containerstart konnte mangels Docker-Daemon-Berechtigung nicht durchgeführt werden.
+Prüfstand nach der Sites-Portierung: 33 automatisierte Tests einschließlich echter lokaler Worker-/D1-Emulation, strikte TypeScript-Prüfung und `docker compose --env-file .env.example config --quiet` erfolgreich. Die lokale Browser-Prüfung mit getrennten Ursprüngen bestätigte QR-Annahme, Wartestatus, Änderungen in beide Richtungen, 320/390 Pixel und serverbestätigten Entzug bei erhaltenen lokalen Kopien. Der echte Containerstart konnte mangels Docker-Daemon-Berechtigung nicht durchgeführt werden.
 
 Browser-Smokecheck: private Liste bearbeiten, QR im zweiten Speicher öffnen, Fragmententfernung und Bestätigung prüfen, Wartestatus vor Erstupload, Änderungen in beide Richtungen, 320/390-Pixel-Portrait, 100/150 Prozent, Suche und einklappbare Eingabe. Physische Smartphone-Kamera und reale mobile Chrome-/Safari-/Firefox-Versionen separat prüfen; automatisierte Tests und die lokale Browser-Vorschau ersetzen diese Geräteprüfung nicht.
 

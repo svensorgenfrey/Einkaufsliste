@@ -73,3 +73,16 @@ test('transport uses the stable revision header and normalizes proxy-weakened le
     assert.equal(result.revision,'"4-version"');
   }
 });
+
+test('external static frontend addresses the configured API without sending its cookies',async()=>{
+  let received;
+  const client=browser('https://api.example.test',undefined,async(url,options)=>{received={url:String(url),...options};return new Response('{}');});
+  const transport=new client.ShareTransport('https://api.example.test','https://sorgenfrey.de');
+  await transport.request('/api/shares',P.secret(),'POST',{id:P.secret()});
+  assert.equal(received.url,'https://api.example.test/api/shares');assert.equal(received.credentials,'omit');assert.equal(received.referrerPolicy,'no-referrer');
+});
+
+test('HTML from a static server is rejected before registration can be acknowledged',async()=>{
+  const client=browser('https://example.test',undefined,async()=>new Response('<html>statische Seite</html>',{headers:{'Content-Type':'text/html'}}));
+  await assert.rejects(client.transport.request('/api/shares',P.secret(),'POST',{}),e=>e.status===502&&e.message.includes('keine Einkaufslisten-API'));
+});

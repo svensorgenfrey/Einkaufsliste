@@ -196,14 +196,15 @@ class ShareError extends Error {
   constructor(status,message) { super(message); this.status=status; }
 }
 class ShareTransport {
-  /** @param {string} origin */
-  constructor(origin) { this.origin=origin; }
+  /** @param {string} origin @param {string} [pageOrigin] */
+  constructor(origin,pageOrigin=origin) { this.origin=new URL(origin).origin; this.pageOrigin=pageOrigin; }
   /** @param {string} path @param {string} token @param {string} [method] @param {unknown} [body] @param {AbortSignal} [signal] @param {Record<string,string>} [headers] */
   async request(path,token,method='GET',body=undefined,signal=undefined,headers={}) {
     if (!path.startsWith('/api/')) throw new Error('Ungültiger API-Pfad.');
-    const response = await fetch(new URL(path,this.origin),{method,headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json',...headers},body:body===undefined?undefined:JSON.stringify(body),signal:signal ? AbortSignal.any([signal,AbortSignal.timeout(12000)]) : AbortSignal.timeout(12000),cache:'no-store',credentials:'same-origin',redirect:'error',referrerPolicy:'no-referrer'});
+    const response = await fetch(new URL(path,this.origin),{method,headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json',...headers},body:body===undefined?undefined:JSON.stringify(body),signal:signal ? AbortSignal.any([signal,AbortSignal.timeout(12000)]) : AbortSignal.timeout(12000),cache:'no-store',credentials:this.origin===this.pageOrigin?'same-origin':'omit',redirect:'error',referrerPolicy:'no-referrer'});
     const data = response.status===204 || response.status===304 ? null : await response.json().catch(()=>null);
-    if (!response.ok && response.status!==304) throw new ShareError(response.status,data?.error || 'Server nicht erreichbar.');
+    if (!response.ok && response.status!==304) throw new ShareError(response.status,data?.error || `Die API ist nicht erreichbar (HTTP ${response.status}). Bitte prüfe die API-Adresse.`);
+    if (response.status!==204 && response.status!==304 && (!data || typeof data!=='object' || Array.isArray(data))) throw new ShareError(502,'Unter der konfigurierten API-Adresse antwortet keine Einkaufslisten-API.');
     return {status:response.status,data,revision:response.headers.get('X-Share-Revision') || response.headers.get('ETag')?.replace(/^W\//,'') || null};
   }
 }
@@ -249,7 +250,8 @@ let syncAgain=false;
 /** @type {Claim|null} */ let pendingClaim=null;
 let sharingBusy=false;
 /** @type {string|null} */ let sharingListId=null;
-const transport=new ShareTransport(location.origin);
+const configuredApiOrigin=document.querySelector('meta[name="shopping-api-origin"]')?.getAttribute('content')?.trim();
+const transport=new ShareTransport(configuredApiOrigin || location.origin,location.origin);
 const incomingInvitation=location.hash.startsWith('#einladung=') ? location.hash.slice(11) : null;
 if (incomingInvitation!==null) history.replaceState(null,'',location.pathname+location.search);
 
@@ -331,8 +333,10 @@ function closeSharing() { if (sharingBusy) return; shareUI.dialog.close(); ui.me
 /** @param {string} id */
 async function showSharing(id) {
   const store=state.store; if (!store) return;
-  const share=await store.share(id);
+  let share=await store.share(id);
+  if (share && !share.registered && share.ownerToken && share.origin!==transport.origin) { share=await store.prepareShare(id,transport.origin); await refresh(); }
   sharingScreen(share?.ownerToken ? 'Liste teilen' : share ? 'Geteilte Liste' : 'Liste teilen',id);
+  if (share && share.origin!==transport.origin) { sharingCopy('Diese Freigabe gehört zu einer anderen API-Adresse. Bitte verwende die ursprüngliche API-Konfiguration; bestehende Freigaben werden nicht automatisch auf einen anderen Server übertragen.'); return; }
   if (share && !share.ownerToken) {
     sharingCopy('Diese Liste wird Ende-zu-Ende-verschlüsselt geteilt. Alle Teilnehmer können Einträge bearbeiten. Neue Personen kann nur der Besitzer einladen.');
     const progress=sharingCopy(remoteStatus); progress.id='sharing-progress';
@@ -379,8 +383,9 @@ function displayInvitation(share,invite) {
 async function createInvitation(id,force) {
   const store=state.store; if (!store) return;
   if (!window.isSecureContext || !crypto.subtle) throw new Error('Zum Teilen wird HTTPS benötigt (lokal ist localhost erlaubt).');
-  const share=await store.prepareShare(id,location.origin);
+  const share=await store.prepareShare(id,transport.origin);
   if (!share.ownerToken) throw new Error('Nur der Besitzer kann Personen einladen.');
+  if (share.origin!==transport.origin) throw new Error('Diese Freigabe gehört zu einer anderen API-Adresse.');
   let invite=await store.invitation(id);
   if (force || !invite || (invite.expiresAt!==null && invite.expiresAt<=Date.now())) {
     const invitationId=ShareProtocol.secret(), claimToken=ShareProtocol.secret(), wrapKey=ShareProtocol.secret();
@@ -400,6 +405,7 @@ async function createInvitation(id,force) {
 async function confirmEndSharing(deleteAll) {
   const share=selectedShare, store=state.store; if (!share?.ownerToken || !store) return;
   sharingScreen(deleteAll?'Für alle löschen?':'Freigabe beenden?',share.id);
+  if (share.origin!==transport.origin) { sharingCopy('Diese Freigabe gehört zu einer anderen API-Adresse. Bitte verwende die ursprüngliche API-Konfiguration.'); return; }
   sharingCopy(deleteAll?'Die Freigabe wird für alle gesperrt und deine lokale Liste gelöscht. Bereits entschlüsselte Kopien auf anderen Geräten lassen sich nicht zurückholen.':'Alle bisherigen Zugänge und Einladungen werden gesperrt. Deine lokale Liste bleibt erhalten. Erneutes Teilen erzeugt neue Schlüssel und erfordert neue Einladungen.');
   sharingCopy('Die Aktion ist erst nach einer Bestätigung des Servers abgeschlossen.');
   sharingButton(deleteAll?'Für alle löschen':'Freigabe beenden',async()=>{
@@ -414,6 +420,7 @@ async function confirmEndSharing(deleteAll) {
 async function showBackupExport() {
   const share=selectedShare; if (!share?.ownerToken) return;
   sharingScreen('Besitzer-Sicherung',share.id);
+  if (share.origin!==transport.origin) { sharingCopy('Diese Freigabe gehört zu einer anderen API-Adresse. Bitte verwende die ursprüngliche API-Konfiguration.'); return; }
   sharingCopy('Diese Datei enthält den Listenschlüssel und alle Besitzerrechte. Bewahre sie wie ein Passwort auf und gib sie nicht weiter. Sie stellt nur den zuletzt synchronisierten Stand wieder her; ausstehende lokale Änderungen sind nicht enthalten.');
   sharingButton('Sicherung herunterladen',async()=>{
     await transport.request(`/api/shares/${share.remoteId}/invitation`,share.ownerToken || '');
@@ -447,7 +454,7 @@ function showClaim() {
     if (packet?.v!==1 || packet.remoteId!==claim.remoteId || 'ownerToken' in packet) throw new Error('Ungültiges Schlüsselpaket.');
     ShareProtocol.token(packet.key); ShareProtocol.token(packet.memberToken);
     if (!state.store) return;
-    const id=await state.store.installShare({id:uuid(),remoteId:claim.remoteId,origin:location.origin,key:packet.key,memberToken:packet.memberToken,ownerToken:null,registered:true},null);
+    const id=await state.store.installShare({id:uuid(),remoteId:claim.remoteId,origin:transport.origin,key:packet.key,memberToken:packet.memberToken,ownerToken:null,registered:true},null);
     await state.store.preference('pendingClaim',null); pendingClaim=null; state.activeId=id; state.query='';
     await refresh(); scheduleSync(0); channel?.postMessage({changed:true}); shareUI.dialog.close(); toast('Liste übernommen; Änderungen erscheinen nach der Synchronisierung.');
   });
@@ -635,7 +642,13 @@ class LocalStore {
     await this.write(['lists','shares','syncStates'],tx=>{
       const request=tx.objectStore('shares').get(id);
       request.onsuccess=()=>{
-        if (request.result) { result=request.result; return; }
+        if (request.result) {
+          result=request.result;
+          // A failed registration on a static host has never uploaded content.
+          // Keep its keys, item history and invitation so the retry stays idempotent.
+          if (!result.registered && result.ownerToken && result.origin!==origin) { result={...result,origin}; tx.objectStore('shares').put(result); }
+          return;
+        }
         const listRequest=tx.objectStore('lists').get(id);
         listRequest.onsuccess=()=>{ if (!listRequest.result) { tx.abort(); return; } tx.objectStore('shares').put(candidate); tx.objectStore('syncStates').put({id,doc:ShareProtocol.initial(listRequest.result),dirty:true}); };
       };

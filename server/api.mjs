@@ -48,15 +48,13 @@ export const SECURITY_HEADERS = {
   'Cache-Control': 'no-store, no-transform',
   'X-Content-Type-Options': 'nosniff',
   'Referrer-Policy': 'no-referrer',
-  'Content-Security-Policy': "default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self' data:; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+  'Content-Security-Policy': "default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self' https://einkaufsliste-sync-f6c82a.sven38419.chatgpt.site; img-src 'self' data:; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
 };
 
 /** Portable Fetch API handler, shared by Node.js and the Sites Worker. */
-export function createApi({ repository, origin, clock = Date.now, clientIp = () => 'unknown', assets, rateLimit = 600 }) {
+export function createApi({ repository, origin, clock = Date.now, clientIp = () => 'unknown', assets, rateLimit = 600, allowedOrigins = [] }) {
   const limit = limiter();
-  const send = (status, data, headers = {}) => new Response(data === undefined ? null : JSON.stringify(data), {
-    status, headers: { ...SECURITY_HEADERS, 'Content-Type': 'application/json; charset=utf-8', ...headers }
-  });
+  const allowed = new Set(allowedOrigins);
   const auth = async (id, token, ownerOnly = false, allowRevoked = false) => {
     const document = await repository.get(id);
     const owner = document && await equalHash(token, document.ownerHash);
@@ -73,17 +71,32 @@ export function createApi({ repository, origin, clock = Date.now, clientIp = () 
     }
   };
   return async request => {
+    const path = new URL(request.url).pathname;
+    const requestOrigin = request.headers.get('Origin');
+    const expectedOrigin = origin || new URL(request.url).origin;
+    const originAllowed = !requestOrigin || requestOrigin===expectedOrigin || allowed.has(requestOrigin);
+    const cors = path.startsWith('/api/') && requestOrigin && originAllowed
+      ? {'Access-Control-Allow-Origin':requestOrigin,'Access-Control-Expose-Headers':'ETag, X-Share-Revision','Vary':'Origin'} : {};
+    // Request-local headers: concurrent origins must never share mutable CORS state.
+    const send = (status,data,headers={}) => new Response(data===undefined ? null : JSON.stringify(data), {
+      status,headers:{...SECURITY_HEADERS,'Content-Type':'application/json; charset=utf-8',...cors,...headers}
+    });
     try {
-      const path = new URL(request.url).pathname;
       if (path === '/healthz' && request.method === 'GET') { await repository.health?.(); return send(200, { ok: true, storage: repository.kind || 'couchdb' }); }
       if (!path.startsWith('/api/')) {
         if (assets) return await assets(request, path, SECURITY_HEADERS);
         throw fail(404, 'Nicht gefunden.');
       }
-      const expectedOrigin = origin || new URL(request.url).origin;
-      if (request.headers.get('Origin') && request.headers.get('Origin') !== expectedOrigin) throw fail(403, 'Andere Herkunft nicht erlaubt.');
+      if (!originAllowed) throw fail(403, 'Diese App-Adresse ist für die API nicht freigegeben.');
       const ip = clientIp(request);
       limit(`all:${ip}`, rateLimit, 60_000);
+      if (request.method==='OPTIONS') {
+        const method=request.headers.get('Access-Control-Request-Method');
+        const headers=(request.headers.get('Access-Control-Request-Headers') || '').toLowerCase().split(',').map(value=>value.trim()).filter(Boolean);
+        const permitted=['authorization','content-type','if-match','if-none-match','cache-control','pragma'];
+        if (!requestOrigin || !['GET','POST','PUT','DELETE'].includes(method) || headers.some(value=>!permitted.includes(value))) throw fail(403,'Anfrage nicht freigegeben.');
+        return send(204,undefined,{'Access-Control-Allow-Methods':'GET, POST, PUT, DELETE, OPTIONS','Access-Control-Allow-Headers':'Authorization, Content-Type, If-Match, If-None-Match, Cache-Control, Pragma','Access-Control-Max-Age':'600'});
+      }
       const token = /^Bearer ([A-Za-z0-9_-]{43})$/.exec(request.headers.get('Authorization') || '')?.[1] || '';
       let body;
       if (['POST', 'PUT'].includes(request.method)) {
@@ -110,7 +123,15 @@ export function createApi({ repository, origin, clock = Date.now, clientIp = () 
         const existing = await repository.get(body.id);
         if (existing) { await auth(body.id, token, true); if (existing.memberHash !== body.memberHash) throw fail(409, 'Berechtigungen stimmen nicht überein.'); return send(200, { id: body.id }); }
         limit(`create:${ip}`, 30, 3600_000);
-        await repository.put({ id: body.id, ownerHash: await hashToken(token), memberHash: body.memberHash, createdAt: clock(), revoked: false, accepted: false, content: null, invitation: null, receipts: [] });
+        try {
+          await repository.put({ id: body.id, ownerHash: await hashToken(token), memberHash: body.memberHash, createdAt: clock(), revoked: false, accepted: false, content: null, invitation: null, receipts: [] });
+        } catch (error) {
+          if (error.status!==409) throw error;
+          // Foreground invitation creation and the sync adapter may register together.
+          const {document}=await auth(body.id,token,true);
+          if (document.memberHash!==body.memberHash) throw fail(409,'Berechtigungen stimmen nicht überein.');
+          return send(200,{id:body.id});
+        }
         return send(201, { id: body.id });
       }
       const match = /^\/api\/shares\/([A-Za-z0-9_-]{43})(?:\/(content|invitation|claim))?$/.exec(path);

@@ -94,3 +94,26 @@ test('proxy-weakened validators keep conditional revision protection without fal
   assert.equal(updated.status,200);assert.equal(updated.headers.get('X-Share-Revision'),updated.revision);
   assert.equal((await request(f,path,s.memberToken,'PUT',current.data,{'If-Match':'W/'+current.revision})).status,409);
 });
+
+test('only configured external app origins receive CORS, preflight and revision access',async t=>{
+  const origin='https://sorgenfrey.de',f=await fixture(t,{allowedOrigins:[origin]}),P=browser(f.url).P;
+  const preflight=await request(f,'/api/shares','','OPTIONS',undefined,{Origin:origin,'Access-Control-Request-Method':'POST','Access-Control-Request-Headers':'authorization, content-type'});
+  assert.equal(preflight.status,204);assert.equal(preflight.headers.get('Access-Control-Allow-Origin'),origin);
+  assert.match(preflight.headers.get('Access-Control-Allow-Headers'),/Authorization/);assert.match(preflight.headers.get('Access-Control-Expose-Headers'),/X-Share-Revision/);
+  assert.equal(preflight.headers.get('Access-Control-Allow-Credentials'),null);assert.equal(f.documents.size,0);
+  const id=P.secret(),token=P.secret();
+  const created=await request(f,'/api/shares',token,'POST',{id,memberHash:await P.hash(P.secret())},{Origin:origin});
+  assert.equal(created.status,201);assert.equal(created.headers.get('Access-Control-Allow-Origin'),origin);
+  const rejected=await request(f,`/api/shares/${id}/content`,P.secret(),'GET',undefined,{Origin:origin});
+  assert.equal(rejected.status,404);assert.equal(rejected.headers.get('Access-Control-Allow-Origin'),origin);
+  const other=await request(f,'/api/shares','','OPTIONS',undefined,{Origin:'https://untrusted.test','Access-Control-Request-Method':'POST'});
+  assert.equal(other.status,403);assert.equal(other.headers.get('Access-Control-Allow-Origin'),null);
+  assert.equal((await request(f,'/api/shares','','OPTIONS',undefined,{Origin:origin,'Access-Control-Request-Method':'PATCH'})).status,403);
+  assert.equal((await request(f,'/api/shares','','OPTIONS',undefined,{Origin:origin,'Access-Control-Request-Method':'POST','Access-Control-Request-Headers':'x-unexpected'})).status,403);
+});
+
+test('parallel foreground and sync registration is idempotent for the same owner',async t=>{
+  const f=await fixture(t),P=browser(f.url).P,id=P.secret(),token=P.secret(),body={id,memberHash:await P.hash(P.secret())};
+  const results=await Promise.all([request(f,'/api/shares',token,'POST',body),request(f,'/api/shares',token,'POST',body)]);
+  assert.ok(results.every(r=>r.status===200||r.status===201));assert.equal(f.documents.size,1);assert.equal(f.documents.get(id).content,null);
+});

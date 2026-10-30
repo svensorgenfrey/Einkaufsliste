@@ -7,7 +7,7 @@ export default {
   async fetch(request,env) {
     if (!env.DB) return new Response('Datenbank nicht verfügbar.',{status:503});
     if (!api) {
-      api=createApi({repository:new D1Repository(env.DB),origin:env.PUBLIC_ORIGIN,clientIp:req=>req.headers.get('CF-Connecting-IP') || 'unknown',assets:async(req,path,headers)=>{
+      api=createApi({repository:new D1Repository(env.DB),origin:env.PUBLIC_ORIGIN,allowedOrigins:(env.ALLOWED_APP_ORIGINS || '').split(',').map(value=>value.trim()).filter(Boolean),clientIp:req=>req.headers.get('CF-Connecting-IP') || 'unknown',assets:async(req,path,headers)=>{
         const name=path==='/'?'index.html':path.slice(1);
         if (!Object.hasOwn(ASSETS,name) || !['GET','HEAD'].includes(req.method)) return new Response('Nicht gefunden.',{status:404,headers});
         const type=name.endsWith('.js')?'text/javascript':name.endsWith('.css')?'text/css':'text/html';

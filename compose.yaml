@@ -26,6 +26,7 @@ services:
       COUCHDB_PASSWORD: ${COUCHDB_PASSWORD}
       PUBLIC_ORIGIN: https://${DOMAIN:?Set DOMAIN in .env}
       TRUST_PROXY: '1'
+      ALLOWED_APP_ORIGINS: ${ALLOWED_APP_ORIGINS:-}
     networks: [database, web]
     read_only: true
     security_opt: [no-new-privileges:true]

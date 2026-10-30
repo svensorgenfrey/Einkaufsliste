@@ -36,8 +36,8 @@ export class CouchRepository {
 }
 
 /** Node adapter retained for Docker/CouchDB installations and HTTP tests. */
-export function createApp({ repository, origin, clock, trustProxy = false, root = new URL('../', import.meta.url), rateLimit = 600 }) {
-  const api = createApi({repository, origin, clock, rateLimit, clientIp: request => request.headers.get('X-Internal-Client-IP'), assets: async (request, path, headers) => {
+export function createApp({ repository, origin, clock, trustProxy = false, root = new URL('../', import.meta.url), rateLimit = 600, allowedOrigins = [] }) {
+  const api = createApi({repository, origin, clock, rateLimit, allowedOrigins, clientIp: request => request.headers.get('X-Internal-Client-IP'), assets: async (request, path, headers) => {
     const name = {'/':'index.html','/index.html':'index.html','/style.css':'style.css','/app.js':'app.js'}[path];
     if (!name || !['GET','HEAD'].includes(request.method)) return new Response('Nicht gefunden.',{status:404,headers});
     const content = await readFile(new URL(name,root));
@@ -58,13 +58,13 @@ export function createApp({ repository, origin, clock, trustProxy = false, root 
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  const { COUCHDB_URL, COUCHDB_USER, COUCHDB_PASSWORD, PUBLIC_ORIGIN, PORT = '8080', TRUST_PROXY } = process.env;
+  const { COUCHDB_URL, COUCHDB_USER, COUCHDB_PASSWORD, PUBLIC_ORIGIN, PORT = '8080', TRUST_PROXY, ALLOWED_APP_ORIGINS = '' } = process.env;
   if (!COUCHDB_URL || !COUCHDB_USER || !COUCHDB_PASSWORD || !PUBLIC_ORIGIN) throw new Error('COUCHDB_URL, COUCHDB_USER, COUCHDB_PASSWORD and PUBLIC_ORIGIN are required');
   const publicOrigin = new URL(PUBLIC_ORIGIN);
   if (publicOrigin.origin !== PUBLIC_ORIGIN || (process.env.NODE_ENV === 'production' && (publicOrigin.protocol !== 'https:' || COUCHDB_PASSWORD.length < 32 || COUCHDB_PASSWORD.startsWith('CHANGE_ME')))) throw new Error('Use a canonical HTTPS PUBLIC_ORIGIN and an independent CouchDB password of at least 32 characters in production');
   const repository = new CouchRepository({ url: COUCHDB_URL, user: COUCHDB_USER, password: COUCHDB_PASSWORD });
   await repository.initialize();
-  const server = createServer(createApp({ repository, origin: PUBLIC_ORIGIN, trustProxy: TRUST_PROXY === '1' }));
+  const server = createServer(createApp({ repository, origin: PUBLIC_ORIGIN, trustProxy: TRUST_PROXY === '1', allowedOrigins:ALLOWED_APP_ORIGINS.split(',').map(value=>value.trim()).filter(Boolean) }));
   server.requestTimeout = 15_000;
   server.headersTimeout = 10_000;
   server.listen(Number(PORT), '0.0.0.0', () => console.log(`Shopping API listening on port ${PORT}`));
