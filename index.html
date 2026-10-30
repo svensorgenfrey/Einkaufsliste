@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="dark">
+  <meta name="theme-color" content="#121510">
+  <link rel="icon" href="data:,">
+  <title>Einkaufsliste</title>
+  <link rel="stylesheet" href="style.css">
+  <script defer src="app.js"></script>
+</head>
+<body>
+  <svg class="icon-definitions" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+    <symbol id="i-more" viewBox="0 0 24 24"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></symbol>
+    <symbol id="i-chevron" viewBox="0 0 24 24"><path d="m7 10 5 5 5-5"/></symbol>
+    <symbol id="i-edit" viewBox="0 0 24 24"><path d="m14 5 5 5M4 20l5-1L20 8a2.1 2.1 0 0 0-5-5L4 14Z"/></symbol>
+    <symbol id="i-trash" viewBox="0 0 24 24"><path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7M14 10v7"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></symbol>
+    <symbol id="i-all" viewBox="0 0 24 24"><path d="m3 12 4 4L17 6M12 16l3 3 7-8"/></symbol>
+    <symbol id="i-box" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="4"/><path d="m8 12 3 3 5-6"/></symbol>
+    <symbol id="i-heading" viewBox="0 0 24 24"><path d="M4 5v14M14 5v14M4 12h10M18 14h2a2 2 0 0 1 0 4h-2m2-4a2 2 0 0 0 0-4h-2"/></symbol>
+    <symbol id="i-rule" viewBox="0 0 24 24"><path d="M4 12h16"/></symbol>
+    <symbol id="i-grip" viewBox="0 0 24 24"><path d="M9 5h.01M15 5h.01M9 12h.01M15 12h.01M9 19h.01M15 19h.01" stroke-width="3.5"/></symbol>
+    <symbol id="i-up" viewBox="0 0 24 24"><path d="m6 12 6-6 6 6M12 6v13"/></symbol>
+    <symbol id="i-down" viewBox="0 0 24 24"><path d="m6 12 6 6 6-6M12 5v13"/></symbol>
+    <symbol id="i-close" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></symbol>
+    <symbol id="i-rotate" viewBox="0 0 24 24"><rect x="8" y="3" width="9" height="17" rx="2" transform="rotate(24 12 12)"/><path d="M4 6v5h5M20 18v-5h-5"/></symbol>
+  </svg>
+
+  <div class="app-shell" id="app-shell" data-scale="normal" aria-busy="true">
+    <header class="app-bar">
+      <div class="list-bar">
+        <div class="select-wrap">
+          <select id="list-select" aria-label="Einkaufsliste auswählen" disabled><option>Wird geladen …</option></select>
+          <svg class="icon select-chevron" aria-hidden="true"><use href="#i-chevron"/></svg>
+        </div>
+        <button class="icon-button new-list" id="new-list" aria-label="Neue Liste anlegen" title="Neue Liste" disabled><svg class="icon" aria-hidden="true"><use href="#i-plus"/></svg></button>
+        <div class="menu-anchor">
+          <button class="icon-button" id="list-menu-toggle" aria-label="Listenoptionen" aria-haspopup="menu" aria-expanded="false" aria-controls="list-menu" disabled><svg class="icon" aria-hidden="true"><use href="#i-more"/></svg></button>
+          <div class="menu" id="list-menu" role="menu" hidden>
+            <button role="menuitem" data-action="rename-list"><svg class="icon" aria-hidden="true"><use href="#i-edit"/></svg>Liste umbenennen</button>
+            <button class="danger-text" role="menuitem" data-action="delete-list"><svg class="icon" aria-hidden="true"><use href="#i-trash"/></svg>Liste löschen</button>
+          </div>
+        </div>
+      </div>
+      <div class="tools-bar">
+        <button class="all-button" id="toggle-all" disabled><svg class="icon" aria-hidden="true"><use href="#i-all"/></svg><span id="all-label">Alle abhaken</span><span class="count" id="item-count">0 / 0</span></button>
+        <div class="scale-switch" role="group" aria-label="Ansichtsgröße">
+          <button id="scale-normal" aria-label="Normale Ansicht, 100 Prozent" aria-pressed="true" disabled>100<span>%</span></button>
+          <button id="scale-large" aria-label="Vergrößerte Ansicht, 150 Prozent" aria-pressed="false" disabled>150<span>%</span></button>
+        </div>
+      </div>
+      <div class="progress-track" aria-hidden="true"><div id="progress-fill"></div></div>
+    </header>
+
+    <main id="list-viewport" tabindex="-1">
+      <div class="storage-error" id="storage-error" role="alert" hidden><p id="storage-error-message"></p><button class="text-button" id="retry-storage">Erneut versuchen</button></div>
+      <ul class="shopping-list" id="shopping-list" aria-label="Listenelemente"></ul>
+      <div class="empty-state" id="empty-state" hidden>
+        <div class="empty-symbol"><svg aria-hidden="true"><use href="#i-box"/></svg></div>
+        <p id="empty-text">Noch keine Einträge</p>
+        <button class="text-button" id="empty-create" hidden>Liste anlegen</button>
+      </div>
+    </main>
+
+    <footer class="composer-panel">
+      <div class="composer-options">
+        <div class="kind-switch" role="group" aria-label="Neues Element">
+          <button type="button" id="kind-item" aria-pressed="true" disabled><svg class="icon" aria-hidden="true"><use href="#i-box"/></svg>Eintrag</button>
+          <button type="button" id="kind-heading" aria-pressed="false" disabled><svg class="icon" aria-hidden="true"><use href="#i-heading"/></svg>Überschrift</button>
+          <button type="button" id="add-divider" aria-label="Trennlinie hinzufügen" title="Trennlinie hinzufügen" disabled><svg class="icon" aria-hidden="true"><use href="#i-rule"/></svg></button>
+        </div>
+        <span class="save-status" id="save-status" role="status" aria-live="polite"><span class="status-dot"></span><span id="save-status-text">Laden …</span></span>
+      </div>
+      <form id="composer" autocomplete="off">
+        <label class="sr-only" for="new-text">Neuer Eintrag</label>
+        <input id="new-text" name="text" type="text" maxlength="500" placeholder="Eintrag hinzufügen" enterkeyhint="done" disabled>
+        <button class="add-button" id="add-item" type="submit" aria-label="Eintrag hinzufügen" disabled><svg class="icon" aria-hidden="true"><use href="#i-plus"/></svg></button>
+      </form>
+    </footer>
+  </div>
+
+  <div class="landscape-notice" id="landscape-notice" role="alert" hidden><svg class="icon" aria-hidden="true"><use href="#i-rotate"/></svg><p>Bitte hochkant drehen</p></div>
+  <dialog id="editor" aria-labelledby="dialog-title">
+    <form id="editor-form" autocomplete="off">
+      <div class="dialog-heading"><h2 id="dialog-title"></h2><button type="button" class="icon-button" id="close-dialog" aria-label="Schließen"><svg class="icon" aria-hidden="true"><use href="#i-close"/></svg></button></div>
+      <div id="dialog-fields"></div>
+      <p class="dialog-error" id="dialog-error" role="alert" hidden></p>
+      <div class="dialog-actions"><button class="text-button danger-text" type="button" id="dialog-delete" hidden>Löschen</button><span class="action-spacer"></span><button type="button" class="text-button" id="cancel-dialog">Abbrechen</button><button type="submit" class="filled-button" id="save-dialog">Speichern</button></div>
+    </form>
+  </dialog>
+  <div class="toast" id="toast" hidden></div>
+  <div class="sr-only" id="announcer" role="status" aria-live="polite" aria-atomic="true"></div>
+  <p class="sr-only" id="drag-help">Zum Verschieben am Griff ziehen oder den Griff fokussieren und die Pfeiltasten nach oben und unten verwenden. Antippen öffnet weitere Optionen.</p>
+</body>
+</html>
