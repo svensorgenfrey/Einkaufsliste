@@ -42,6 +42,12 @@
           <button class="icon-button" id="list-menu-toggle" aria-label="Listenoptionen" aria-haspopup="menu" aria-expanded="false" aria-controls="list-menu" disabled><svg class="icon" aria-hidden="true"><use href="#i-more"/></svg></button>
           <div class="menu" id="list-menu" role="menu" hidden>
             <button role="menuitem" data-action="rename-list"><svg class="icon" aria-hidden="true"><use href="#i-edit"/></svg>Liste umbenennen</button>
+            <button role="menuitem" data-action="share-list">Liste teilen</button>
+            <button role="menuitem" data-action="claim-list" hidden>Einladung übernehmen</button>
+            <button role="menuitem" data-action="export-owner" hidden>Besitzer-Sicherung exportieren</button>
+            <button role="menuitem" data-action="import-owner">Besitzer-Sicherung importieren</button>
+            <button class="danger-text" role="menuitem" data-action="end-share" hidden>Freigabe beenden</button>
+            <button class="danger-text" role="menuitem" data-action="delete-all" hidden>Für alle löschen</button>
             <button class="danger-text" role="menuitem" data-action="delete-list"><svg class="icon" aria-hidden="true"><use href="#i-trash"/></svg>Liste löschen</button>
           </div>
         </div>
@@ -64,6 +70,7 @@
     </header>
 
     <main id="list-viewport" tabindex="-1">
+      <div id="sync-status" role="status" aria-live="polite" hidden></div>
       <div class="storage-error" id="storage-error" role="alert" hidden><p id="storage-error-message"></p><button class="text-button" id="retry-storage">Erneut versuchen</button></div>
       <ul class="shopping-list" id="shopping-list" aria-label="Listenelemente"></ul>
       <div class="empty-state" id="empty-state" hidden>
@@ -106,6 +113,13 @@
       <div class="dialog-actions"><button class="text-button danger-text" type="button" id="dialog-delete" hidden>Löschen</button><span class="action-spacer"></span><button type="button" class="text-button" id="cancel-dialog">Abbrechen</button><button type="submit" class="filled-button" id="save-dialog">Speichern</button></div>
     </form>
   </dialog>
+  <dialog id="sharing-dialog" aria-labelledby="sharing-title">
+    <div class="dialog-heading"><h2 id="sharing-title"></h2><button class="icon-button" type="button" id="sharing-close" aria-label="Schließen"><svg class="icon" aria-hidden="true"><use href="#i-close"/></svg></button></div>
+    <div id="sharing-body"></div>
+    <p id="sharing-error" class="dialog-error" role="alert" hidden></p>
+    <div id="sharing-actions" class="sharing-actions"></div>
+  </dialog>
+  <input id="owner-backup" type="file" accept="application/json,.json" hidden>
   <div class="toast" id="toast" hidden></div>
   <div class="sr-only" id="announcer" role="status" aria-live="polite" aria-atomic="true"></div>
   <p class="sr-only" id="drag-help">Listenelemente lassen sich am Griff ziehen oder mit den Pfeiltasten nach oben und unten verschieben. Die Eingabeleiste lässt sich am Griff nach unten einklappen und nach oben wieder öffnen.</p>

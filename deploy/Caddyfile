@@ -1,0 +1,9 @@
+{$DOMAIN} {
+    encode zstd gzip
+    header Strict-Transport-Security "max-age=31536000"
+    request_body {
+        max_size 2097152
+    }
+    reverse_proxy api:8080
+    # No access log: never log Authorization, invitation bodies or client IPs.
+}

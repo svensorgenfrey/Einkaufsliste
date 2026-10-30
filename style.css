@@ -163,3 +163,11 @@ dialog::backdrop { background: #000000b8; backdrop-filter: blur(3px); }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
 }
+
+#sync-status { margin: 6px 6px 8px; color: #dedede; font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; }
+#qr-code { display: block; width: 100%; max-width: 320px; height: auto; margin: 16px auto; border-radius: 4px; shape-rendering: crispEdges; }
+.sharing-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 10px; margin-top: 20px; }
+.sharing-actions button { flex: 1 1 auto; }
+#sharing-dialog .field input { font-size: 13px; }
+.menu { max-width: calc(100vw - 32px); max-height: calc(var(--app-height, 100dvh) - 100px); overflow-y: auto; }
+.menu button[hidden] { display: none; }
