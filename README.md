@@ -55,7 +55,7 @@ Compose startet CouchDB, die API und Caddy. Nur Caddy veröffentlicht Ports; Cou
 
 Für ein separat gehostetes Frontend die API-Origin im App-Link angeben, z. B. `https://frontend.example.org/?api=https%3A%2F%2Feinkaufsliste.example.org`, und `ALLOWED_APP_ORIGINS=https://frontend.example.org` in `.env` setzen. Mehrere Origins werden kommasepariert angegeben. Ohne diese Einstellung nimmt die API nur gleich-originige Browserzugriffe an. Falls der Frontend-Host eine eigene Content-Security-Policy setzt, muss dessen `connect-src` die API-Origin erlauben. QR- und Einladungslinks übernehmen die API-Origin automatisch.
 
-CouchDB-Daten liegen im benannten Volume `couch-data`; Caddy-Zertifikate und Konfiguration in `caddy-data` und `caddy-config`. `.env`, Daten-Volume und Besitzer-Sicherungen getrennt sichern. `docker compose down` erhält die Volumes; `docker compose down -v` löscht sie.
+CouchDB schreibt Daten dateiintern append-only und gewinnt ungenutzten Platz durch automatische Smoosh-Kompaktierung zurück. Der Disk-Monitor stoppt interaktive Schreibvorgänge ab 85 % belegtem Speicher, damit Platz für Kompaktierung bleibt. CouchDB-Daten liegen im benannten Volume `couch-data`; Caddy-Zertifikate und Konfiguration in `caddy-data` und `caddy-config`. `.env`, Daten-Volume und Besitzer-Sicherungen getrennt sichern. `docker compose down` erhält die Volumes; `docker compose down -v` löscht sie.
 
 ### Cloudflare Worker mit D1
 

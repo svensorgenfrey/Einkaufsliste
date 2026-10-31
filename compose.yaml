@@ -1,13 +1,15 @@
 services:
   couchdb:
-    image: couchdb:3
+    build:
+      context: .
+      dockerfile: Dockerfile.couchdb
+    image: einkaufsliste-couchdb:3
     restart: unless-stopped
     environment:
       COUCHDB_USER: ${COUCHDB_USER:?Set COUCHDB_USER in .env}
       COUCHDB_PASSWORD: ${COUCHDB_PASSWORD:?Set COUCHDB_PASSWORD in .env}
     volumes:
       - couch-data:/opt/couchdb/data
-      - ./deploy/couchdb.ini:/opt/couchdb/etc/local.d/shopping.ini:ro
     networks: [database]
     healthcheck:
       test: [CMD-SHELL, 'curl -fsS --user "$$COUCHDB_USER:$$COUCHDB_PASSWORD" http://127.0.0.1:5984/_up >/dev/null']
