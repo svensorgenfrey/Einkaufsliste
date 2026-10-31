@@ -77,7 +77,7 @@ test('transport uses the stable revision header and normalizes proxy-weakened le
 test('external static frontend addresses the configured API without sending its cookies',async()=>{
   let received;
   const client=browser('https://api.example.test',undefined,async(url,options)=>{received={url:String(url),...options};return new Response('{}');});
-  const transport=new client.ShareTransport('https://api.example.test','https://sorgenfrey.de');
+  const transport=new client.ShareTransport('https://api.example.test','https://frontend.example.test');
   await transport.request('/api/shares',P.secret(),'POST',{id:P.secret()});
   assert.equal(received.url,'https://api.example.test/api/shares');assert.equal(received.credentials,'omit');assert.equal(received.referrerPolicy,'no-referrer');
 });

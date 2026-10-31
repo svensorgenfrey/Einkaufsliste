@@ -118,9 +118,9 @@ test('two tabs on the same IndexedDB commit concurrent local edits and metadata 
   tab.store.database.close();
 });
 
-test('failed static-host registration can resume on the configured API without losing data or secrets',async()=>{
+test('failed registration can resume on the configured API without losing data or secrets',async()=>{
   const client=await browser('https://api.example.test').open(),list=client.makeList('Meine lokale Liste');list.items=[item('Bleibt erhalten')];list.items[0].checked=true;await client.store.create(list);
-  const previous=await client.store.prepareShare(list.id,'https://sorgenfrey.de'),before=await client.store.syncState(list.id);
+  const previous=await client.store.prepareShare(list.id,'https://old-api.example.test'),before=await client.store.syncState(list.id);
   const pending={id:list.id,invitationId:client.P.secret(),claimToken:client.P.secret(),wrapKey:client.P.secret(),box:null,expiresAt:null};pending.box=await client.P.invitationBox(previous,pending.invitationId,pending.wrapKey);await client.store.saveInvitation(pending);
   const migrated=await client.store.prepareShare(list.id,'https://api.example.test');assert.equal(migrated.origin,'https://api.example.test');
   for(const field of ['id','remoteId','key','ownerToken','memberToken'])assert.equal(migrated[field],previous[field]);

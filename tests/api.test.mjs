@@ -96,7 +96,7 @@ test('proxy-weakened validators keep conditional revision protection without fal
 });
 
 test('only configured external app origins receive CORS, preflight and revision access',async t=>{
-  const origin='https://sorgenfrey.de',f=await fixture(t,{allowedOrigins:[origin]}),P=browser(f.url).P;
+  const origin='https://frontend.example.test',f=await fixture(t,{allowedOrigins:[origin]}),P=browser(f.url).P;
   const preflight=await request(f,'/api/shares','','OPTIONS',undefined,{Origin:origin,'Access-Control-Request-Method':'POST','Access-Control-Request-Headers':'authorization, content-type'});
   assert.equal(preflight.status,204);assert.equal(preflight.headers.get('Access-Control-Allow-Origin'),origin);
   assert.match(preflight.headers.get('Access-Control-Allow-Headers'),/Authorization/);assert.match(preflight.headers.get('Access-Control-Expose-Headers'),/X-Share-Revision/);

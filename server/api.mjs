@@ -48,7 +48,7 @@ export const SECURITY_HEADERS = {
   'Cache-Control': 'no-store, no-transform',
   'X-Content-Type-Options': 'nosniff',
   'Referrer-Policy': 'no-referrer',
-  'Content-Security-Policy': "default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self' https://einkaufsliste-sync-f6c82a.sven38419.chatgpt.site; img-src 'self' data:; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+  'Content-Security-Policy': "default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self' data:; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
 };
 
 /** Portable Fetch API handler, shared by Node.js and the Sites Worker. */

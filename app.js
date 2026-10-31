@@ -196,10 +196,11 @@ class ShareError extends Error {
   constructor(status,message) { super(message); this.status=status; }
 }
 class ShareTransport {
-  /** @param {string} origin @param {string} [pageOrigin] */
-  constructor(origin,pageOrigin=origin) { this.origin=new URL(origin).origin; this.pageOrigin=pageOrigin; }
+  /** @param {string} origin @param {string} [pageOrigin] @param {string} [configurationError] */
+  constructor(origin,pageOrigin=origin,configurationError='') { this.origin=new URL(origin).origin; this.pageOrigin=pageOrigin; this.configurationError=configurationError; }
   /** @param {string} path @param {string} token @param {string} [method] @param {unknown} [body] @param {AbortSignal} [signal] @param {Record<string,string>} [headers] */
   async request(path,token,method='GET',body=undefined,signal=undefined,headers={}) {
+    if (this.configurationError) throw new ShareError(400,this.configurationError);
     if (!path.startsWith('/api/')) throw new Error('Ungültiger API-Pfad.');
     const response = await fetch(new URL(path,this.origin),{method,headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json',...headers},body:body===undefined?undefined:JSON.stringify(body),signal:signal ? AbortSignal.any([signal,AbortSignal.timeout(12000)]) : AbortSignal.timeout(12000),cache:'no-store',credentials:this.origin===this.pageOrigin?'same-origin':'omit',redirect:'error',referrerPolicy:'no-referrer'});
     const data = response.status===204 || response.status===304 ? null : await response.json().catch(()=>null);
@@ -250,8 +251,22 @@ let syncAgain=false;
 /** @type {Claim|null} */ let pendingClaim=null;
 let sharingBusy=false;
 /** @type {string|null} */ let sharingListId=null;
-const configuredApiOrigin=document.querySelector('meta[name="shopping-api-origin"]')?.getAttribute('content')?.trim();
-const transport=new ShareTransport(configuredApiOrigin || location.origin,location.origin);
+const configuredApiOrigin=document.querySelector('meta[name="shopping-api-origin"]')?.getAttribute('content')?.trim() || '';
+const apiParameters=new URL(location.href).searchParams;
+const apiOriginValue=apiParameters.has('api') ? apiParameters.get('api') : configuredApiOrigin;
+let apiOrigin=location.origin;
+let apiConfigurationError='';
+if (apiOriginValue!==null && apiOriginValue.trim()) {
+  try {
+    const candidate=new URL(apiOriginValue);
+    const localHost=['localhost','127.0.0.1','[::1]','::1'].includes(candidate.hostname) || candidate.hostname.endsWith('.localhost');
+    if ((candidate.protocol!=='https:' && !(candidate.protocol==='http:' && localHost)) || candidate.username || candidate.password || candidate.pathname!=='/' || candidate.search || candidate.hash) throw new Error();
+    apiOrigin=candidate.origin;
+  } catch { apiConfigurationError='Die API-Adresse ist ungültig. Verwende eine vollständige HTTPS-Origin ohne Pfad, Zugangsdaten oder Zusatzparameter.'; }
+} else if (apiParameters.has('api')) {
+  apiConfigurationError='Der Parameter „api“ enthält keine API-Adresse.';
+}
+const transport=new ShareTransport(apiOrigin,location.origin,apiConfigurationError);
 const incomingInvitation=location.hash.startsWith('#einladung=') ? location.hash.slice(11) : null;
 if (incomingInvitation!==null) history.replaceState(null,'',location.pathname+location.search);
 
@@ -362,6 +377,7 @@ function displayInvitation(share,invite) {
   sharingCopy('Einmaliger Zugang zur Liste. Mit der Smartphone-Kamera scannen; beim ersten Teilen beide Apps geöffnet lassen.');
   const payload={v:1,remoteId:share.remoteId,invitationId:invite.invitationId,claimToken:invite.claimToken,wrapKey:invite.wrapKey};
   const url=new URL(location.pathname,location.origin);
+  if (transport.origin!==location.origin) url.searchParams.set('api',transport.origin);
   url.hash='einladung='+ShareProtocol.invitationFragment(payload);
   const qr=qrcodegen.QrCode.encodeText(url.href,qrcodegen.QrCode.Ecc.MEDIUM);
   const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');
