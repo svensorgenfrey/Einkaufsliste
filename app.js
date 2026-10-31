@@ -251,9 +251,8 @@ let syncAgain=false;
 /** @type {Claim|null} */ let pendingClaim=null;
 let sharingBusy=false;
 /** @type {string|null} */ let sharingListId=null;
-const configuredApiOrigin=document.querySelector('meta[name="shopping-api-origin"]')?.getAttribute('content')?.trim() || '';
 const apiParameters=new URL(location.href).searchParams;
-const apiOriginValue=apiParameters.has('api') ? apiParameters.get('api') : configuredApiOrigin;
+const apiOriginValue=apiParameters.has('api') ? apiParameters.get('api') : '';
 let apiOrigin=location.origin;
 let apiConfigurationError='';
 if (apiOriginValue!==null && apiOriginValue.trim()) {
