@@ -43,6 +43,8 @@
           <button class="icon-button" id="list-menu-toggle" aria-label="Listenoptionen" aria-haspopup="menu" aria-expanded="false" aria-controls="list-menu" disabled><svg class="icon" aria-hidden="true"><use href="#i-more"/></svg></button>
           <div class="menu" id="list-menu" role="menu" hidden>
             <button role="menuitem" data-action="rename-list"><svg class="icon" aria-hidden="true"><use href="#i-edit"/></svg>Liste umbenennen</button>
+            <button role="menuitem" data-action="export-list">Listeninhalte exportieren</button>
+            <button role="menuitem" data-action="import-list">Listeninhalte als neue Liste importieren</button>
             <button role="menuitem" data-action="share-list">Liste teilen</button>
             <button role="menuitem" data-action="claim-list" hidden>Einladung übernehmen</button>
             <button role="menuitem" data-action="export-owner" hidden>Besitzer-Sicherung exportieren</button>
@@ -121,6 +123,7 @@
     <div id="sharing-actions" class="sharing-actions"></div>
   </dialog>
   <input id="owner-backup" type="file" accept="application/json,.json" hidden>
+  <input id="list-data-file" type="file" accept="application/json,.json" hidden>
   <div class="toast" id="toast" hidden></div>
   <div class="sr-only" id="announcer" role="status" aria-live="polite" aria-atomic="true"></div>
   <p class="sr-only" id="drag-help">Listenelemente lassen sich am Griff ziehen oder mit den Pfeiltasten nach oben und unten verschieben. Die Eingabeleiste lässt sich am Griff nach unten einklappen und nach oben wieder öffnen.</p>

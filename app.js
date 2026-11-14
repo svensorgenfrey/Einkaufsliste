@@ -240,6 +240,7 @@ const shareUI = {
   dialog:/** @type {HTMLDialogElement} */(element('sharing-dialog')), title:element('sharing-title'), body:element('sharing-body'), error:element('sharing-error'), actions:element('sharing-actions'), close:/** @type {HTMLButtonElement} */(element('sharing-close')),
   banner:element('sync-status'), backup:/** @type {HTMLInputElement} */(element('owner-backup'))
 };
+const listDataUI = { file:/** @type {HTMLInputElement} */(element('list-data-file')) };
 /** @type {Share|null} */ let selectedShare=null;
 let waitingForOwner=false;
 let remoteStatus='';
@@ -432,6 +433,23 @@ async function confirmEndSharing(deleteAll) {
     } finally { scheduleSync(0); }
   },true);
 }
+function exportListContents() {
+  const list=activeList(); if (!list || waitingForOwner) return;
+  const data={kind:'einkaufsliste-list',version:1,name:list.name,items:list.items.map(({kind,text,checked})=>({kind,text,checked}))};
+  const slug=list.name.toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'') || 'liste';
+  const url=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:'application/json'}));
+  const a=document.createElement('a'); a.href=url; a.download=`einkaufsliste-${slug}.json`; a.click(); window.setTimeout(()=>URL.revokeObjectURL(url),60000);
+  toast('Listeninhalt exportiert');
+}
+async function importListContents(file) {
+  if (file.size>32*1024*1024) { toast('Die Listendatei ist zu groß.'); return; }
+  if (!state.store) return;
+  try {
+    const list=importListData(JSON.parse(await file.text()));
+    const success=await persist(async store=>{ await store.create(list); state.activeId=list.id; state.query=''; });
+    if (success) toast(`„${list.name}“ importiert; Freigaben wurden nicht übernommen`);
+  } catch (error) { toast(error instanceof Error ? error.message : 'Import fehlgeschlagen.'); }
+}
 async function showBackupExport() {
   const share=selectedShare; if (!share?.ownerToken) return;
   sharingScreen('Besitzer-Sicherung',share.id);
@@ -494,6 +512,7 @@ async function restoreInvitation() {
 shareUI.close.addEventListener('click',closeSharing);
 shareUI.dialog.addEventListener('cancel',event=>{ event.preventDefault(); closeSharing(); });
 shareUI.backup.addEventListener('change',()=>{ const file=shareUI.backup.files?.[0]; if (file) void sharingWork(()=>importOwnerBackup(file)); });
+listDataUI.file.addEventListener('change',()=>{ const file=listDataUI.file.files?.[0]; if (file) void importListContents(file); });
 window.addEventListener('online',()=>{ stopSync(); syncFailures=0; scheduleSync(0); });
 document.addEventListener('visibilitychange',()=>{ if (document.hidden) stopSync(); else { syncFailures=0; scheduleSync(0); } });
 window.addEventListener('pagehide',stopSync);
@@ -512,6 +531,23 @@ function uuid() {
 function makeList(name) {
   const now = new Date().toISOString();
   return { id: uuid(), name, items: [], createdAt: now, updatedAt: now, schemaVersion: 1 };
+}
+
+/** @param {unknown} value @returns {ShoppingList} */
+function importListData(value) {
+  const invalid = () => { throw new Error('Die Datei ist keine gültige Einkaufsliste oder hat ein unbekanntes Format.'); };
+  if (!value || typeof value !== 'object') invalid();
+  const data = /** @type {Record<string, any>} */ (value);
+  if (data.kind !== 'einkaufsliste-list' || data.version !== 1 || typeof data.name !== 'string' || !data.name.trim() || data.name.length > 100 || !Array.isArray(data.items) || data.items.length > 10000) invalid();
+  const now = new Date().toISOString();
+  return {
+    id:uuid(), name:data.name,
+    items:data.items.map(item => {
+      if (!item || typeof item !== 'object' || !['item','heading','divider'].includes(item.kind) || typeof item.text !== 'string' || item.text.length > 500 || typeof item.checked !== 'boolean' || (item.kind !== 'item' && item.checked)) invalid();
+      return {id:uuid(),kind:item.kind,text:item.text,checked:item.checked,createdAt:now,updatedAt:now};
+    }),
+    createdAt:now, updatedAt:now, schemaVersion:1
+  };
 }
 
 // All local edits and merge metadata commit together, before network activity.
@@ -965,7 +1001,8 @@ function render() {
   for (const button of ui.menu.querySelectorAll('button[data-action]')) {
     if (!(button instanceof HTMLButtonElement)) continue;
     const action=button.dataset.action;
-    button.disabled=!state.ready || (!list && action!=='import-owner' && action!=='claim-list');
+    button.disabled=!state.ready || (!list && !['import-owner','claim-list','import-list'].includes(action || ''));
+    if (action==='export-list' && waitingForOwner) button.disabled=true;
     if (['export-owner','end-share','delete-all'].includes(action || '')) button.hidden=!selectedShare?.ownerToken;
     if (action==='claim-list') button.hidden=!pendingClaim;
     if (action==='share-list') button.textContent=selectedShare ? 'Freigabe ansehen' : 'Liste teilen';
@@ -1302,6 +1339,8 @@ ui.menu.addEventListener("click", event => {
   if (!(button instanceof HTMLButtonElement) || button.disabled) return;
   const action=button.dataset.action;
   if (action==='rename-list' || action==='delete-list') openEditor({mode:action,listId:state.activeId});
+  else if (action==='export-list') { toggleMenu(false); exportListContents(); }
+  else if (action==='import-list') { toggleMenu(false); listDataUI.file.value=''; listDataUI.file.click(); }
   else if (action==='share-list' && state.activeId) void showSharing(state.activeId);
   else if (action==='claim-list') showClaim();
   else if (action==='end-share' || action==='delete-all') void confirmEndSharing(action==='delete-all');

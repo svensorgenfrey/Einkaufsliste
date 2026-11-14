@@ -10,6 +10,7 @@ Eine mobile Einkaufsliste, die ohne Konto und ohne Server nutzbar ist. Listen we
 - Freigabe per QR-Code oder Link. Einladungen sind zehn Minuten gültig und einmalig. Teilnehmende können die gemeinsame Liste bearbeiten.
 - Nur Besitzer können weitere Personen einladen, Freigaben beenden oder serverseitig löschen. Bereits synchronisierte Gerätekopien lassen sich nicht zurückrufen.
 - Besitzer können eine Sicherung exportieren und auf derselben API-Adresse wiederherstellen.
+- Listeninhalte lassen sich als JSON exportieren und als neue private Liste importieren. Einträge, Häkchen, Überschriften, Trennlinien und Reihenfolge bleiben erhalten; Freigaben werden nicht übernommen.
 
 ## Technik
 
